@@ -98,7 +98,7 @@ h3{margin:6px 0 0;font-size:13px;color:var(--muted);font-weight:700;letter-spaci
 .sigbox>div:last-child{border-right:0}
 .note{font-size:12px;margin:3px 0 0;font-style:italic}
 .pg{position:absolute;right:50px;bottom:14px;font-size:11px;color:#444}
-</style>
+[hidden]{display:none!important}</style>
 
 <div class="top"><div class="in">
   <h1>Điền phiếu HH12 Cổ Loa</h1>
@@ -144,6 +144,7 @@ h3{margin:6px 0 0;font-size:13px;color:var(--muted);font-weight:700;letter-spaci
       <span id="msg" class="msg" hidden></span>
       <a id="dlLink" href="#" target="_blank" rel="noopener" hidden style="font-weight:600">Không thấy file? Bấm đây để mở PDF</a>
     </div>
+    <div id="done" hidden style="border:2px solid var(--ok);border-radius:8px;padding:14px;display:flex;flex-direction:column;gap:10px"><b style="color:var(--ok)">Đã tạo xong file PDF</b><p class="hint" id="doneText" style="color:var(--ink)"></p><div class="row"><button id="shareBtn" class="pri" hidden>Gửi / Lưu file (Zalo, Tệp…)</button><button id="openBtn" class="sm">Mở xem PDF</button><button id="saveBtn" class="sm">Tải xuống</button></div></div>
     <div class="pvbox" id="pvbox"><div id="pv"></div></div>
   </section>
 </div>
@@ -338,13 +339,24 @@ window.addEventListener('resize',fit);
   };
 })();
 function setMsg(t,kind){ const m=$('msg'); if(!t){m.hidden=true;return;} m.hidden=false; m.textContent=t; m.style.color=kind==='err'?'var(--bad)':kind==='ok'?'var(--ok)':'inherit'; }
+let lastFile=null,lastUrl=null;
+const canShareFile=f=>{ try{ return !!(navigator.canShare&&navigator.share&&navigator.canShare({files:[f]})); }catch(e){ return false; } };
+function download(){ if(!lastFile) return; const a=document.createElement('a'); a.href=lastUrl; a.download=lastFile.name; document.body.appendChild(a); a.click(); a.remove(); }
 async function deliver(name,blob){
   let cap=null;
   try{ if(window.claude&&window.claude.use) cap=await window.claude.use('downloads'); }catch(e){}
   if(cap){ await cap.save({filename:name,data:blob}); return; }
-  const u=URL.createObjectURL(blob), a=document.createElement('a'); a.href=u; a.download=name; document.body.appendChild(a); a.click(); a.remove();
-  const l=$('dlLink'); l.href=u; l.hidden=false;
+  if(lastUrl) URL.revokeObjectURL(lastUrl);
+  lastFile=new File([blob],name,{type:'application/pdf'}); lastUrl=URL.createObjectURL(blob);
+  const share=canShareFile(lastFile), mobile=/Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+  $('shareBtn').hidden=!share;
+  $('doneText').textContent='Tên file: '+name+'. '+(share?'Bấm "Gửi / Lưu file" để gửi ngay qua Zalo hoặc lưu vào ứng dụng Tệp (Files). ':'')+(mobile?'Nếu bấm "Tải xuống", file nằm trong thư mục Tải xuống (Downloads) của điện thoại, xem trong ứng dụng Tệp / My Files.':'File nằm trong thư mục Tải xuống (Downloads) của máy.');
+  $('done').hidden=false; $('done').scrollIntoView({block:'center'});
+  if(!share) download();
 }
+$('shareBtn').onclick=()=>{ if(lastFile) navigator.share({files:[lastFile],title:lastFile.name}).catch(()=>{}); };
+$('openBtn').onclick=()=>{ if(lastUrl) window.open(lastUrl,'_blank'); };
+$('saveBtn').onclick=download;
 $('dl').onclick=async()=>{
   const st=S[kind];
   const miss=REQ[kind].filter(k=>!String(st.head[k]||'').trim());
@@ -357,7 +369,7 @@ $('dl').onclick=async()=>{
     return;
   }
   if(!itemsFor(st).length){ setMsg('Tick ít nhất một thiết bị trước khi tải PDF.','err'); return; }
-  $('dl').disabled=true; $('dlLink').hidden=true; setMsg('Đang tạo PDF…');
+  $('dl').disabled=true; $('dlLink').hidden=true; $('done').hidden=true; setMsg('Đang tạo PDF…');
   try{
     if(typeof html2canvas==='undefined'||!window.jspdf) throw new Error('chưa tải được thư viện tạo PDF, kiểm tra mạng rồi tải lại trang');
     const pdf=new window.jspdf.jsPDF({unit:'mm',format:'a4',orientation:'portrait'});
