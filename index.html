@@ -521,38 +521,65 @@ async function exportXlsx(list,opt){
   const shName=n=>{let b=String(n||'Khac').replace(/[\[\]:*?\/\\]/g,' ').trim().slice(0,28)||'Khac',x=b,i=2;while(usedNames.has(x.toLowerCase())){x=b.slice(0,26)+' '+i++;}usedNames.add(x.toLowerCase());return x;};
   const stt=s=>s.status==='pending'&&cur(s)?'Chờ '+cur(s).label:STATUS[s.status];
   const done=list.filter(s=>s.status==='done');
-  // 1. Tổng hợp theo nhà thầu
-  const groups={};done.forEach(s=>{const g=(s.type==='N'?'NCC ':'')+(who(s)||'Chưa rõ');(groups[g]=groups[g]||[]).push(s);});
+  // 1. Thống kê theo 23 mã thiết bị (đúng trật tự bảng mã HH12)
+  const GRP=c=>/^RL/.test(c)?'Hệ giáo Ringlock':/^GN/.test(c)?'Giằng ngang':/^GX/.test(c)?'Giằng chéo':/^K[DU]/.test(c)?'Kích chống':/^TH100/.test(c)?'Thép hộp 50x100':/^TH50/.test(c)?'Thép hộp 50x50':'Phụ kiện hệ chống';
+  const codeOf=i=>{const m=String(i.ma||'').trim();if(CAT.some(c=>c[0]===m))return m;const p=String(i.ten||'').match(/\(([A-Z0-9-]+)\)\s*$/);if(p&&CAT.some(c=>c[0]===p[1]))return p[1];const t=CAT.find(c=>c[1].toLowerCase()===String(i.ten||'').trim().toLowerCase());return t?t[0]:'';};
+  const GOLD='FFC9A24B',LIGHT='FFEAF0FA';
+  const title=(ws,t,n)=>{ws.addRow([t]);ws.mergeCells(1,1,1,n);ws.getCell('A1').font={bold:true,size:13,name:'Times New Roman',color:{argb:NAVY}};ws.addRow(['Ngày xuất báo cáo: '+fmtD(today())+' · chỉ tính phiếu đã ký đủ']);ws.mergeCells(2,1,2,n);ws.getCell('A2').font={italic:true,name:'Times New Roman'};};
+  // gom theo nhà thầu: mỗi mã một dòng
+  const agg=ss=>{const M={};CAT.forEach(c=>M[c[0]]={ma:c[0],ten:c[1],grp:GRP(c[0]),dvt:c[2],x:0,t:0});const O={};
+    ss.forEach(s=>s.items.forEach(i=>{const sl=num(i.sl);if(!sl)return;const c=codeOf(i);let o;if(c)o=M[c];else{const k=(i.ten||'')+'|'+(i.dvt||'');o=O[k]=O[k]||{ma:'',ten:i.ten||'',grp:'Vật tư khác',dvt:i.dvt||'',x:0,t:0};}
+      if(s.type==='A')o.x+=sl;else o.t+=sl;}));
+    return [...CAT.map(c=>M[c[0]]),...Object.values(O)];};
+  const ntpSs=done.filter(s=>s.type!=='N'),nccSs=done.filter(s=>s.type==='N');
+  const groups={};ntpSs.forEach(s=>{const g=who(s)||'Chưa rõ';(groups[g]=groups[g]||[]).push(s);});
   const names=Object.keys(groups).sort((a,b)=>a.localeCompare(b,'vi'));
+  const tblHdr=['STT','Mã thiết bị','Tên thiết bị','Nhóm thiết bị','ĐVT'];
+  const styleRows=(ws,from,to,ncol)=>{for(let r=from;r<=to;r++)for(let c=1;c<=ncol;c++){const x=ws.getCell(r,c);x.border=BORD;x.alignment={vertical:'middle',wrapText:true,horizontal:(c===1||c===2||c===5||c>5)?'center':'left'};x.font={name:'Times New Roman',bold:c===2};if(r%2===0)x.fill={type:'pattern',pattern:'solid',fgColor:{argb:LIGHT}};}};
+  const totalRow=(ws,r,ncol,label,sumCols,first,last)=>{ws.getCell(r,1).value=label;ws.mergeCells(r,1,r,5);sumCols.forEach(c=>{const L=ws.getColumn(c).letter;ws.getCell(r,c).value={formula:`SUM(${L}${first}:${L}${last})`};});for(let c=1;c<=ncol;c++){const x=ws.getCell(r,c);x.fill={type:'pattern',pattern:'solid',fgColor:{argb:GOLD}};x.font={bold:true,name:'Times New Roman'};x.border=BORD;x.alignment={vertical:'middle',horizontal:c<=5?'left':'center'};}};
   const w0=wb.addWorksheet('Tong hop');
-  w0.addRow(['THỐNG KÊ XUẤT / TRẢ VẬT TƯ THIẾT BỊ THEO NHÀ THẦU PHỤ · HH12 CỔ LOA (chỉ phiếu đã ký đủ)']);w0.mergeCells('A1:G1');w0.getCell('A1').font={bold:true,size:13,name:'Times New Roman'};
-  w0.addRow(['Ngày xuất báo cáo: '+fmtD(today())]);w0.addRow([]);
-  w0.addRow(['Nhà thầu phụ / NCC','Tên sheet','Số phiếu xuất','Số phiếu trả','Số phiếu NCC','Số dòng thiết bị','Ghi chú']);hdr(w0,4);
-  const sheets=[];
-  names.forEach(g=>{
-    const ss=groups[g].slice().sort((a,b)=>String(a.head.ngay||'').localeCompare(String(b.head.ngay||''))||a.code.localeCompare(b.code));
-    const ws=wb.addWorksheet(shName(g));sheets.push([g,ws.name,ss]);
-    ws.addRow(['THỐNG KÊ: '+g]);ws.getCell('A1').font={bold:true,size:13,name:'Times New Roman'};ws.addRow([]);
-    ws.addRow(['Ngày','Mã phiếu','Loại phiếu','Mã TB','Tên thiết bị','ĐVT','SL xuất','SL trả','Hạng mục']);hdr(ws,3);
-    let r=4;ss.forEach(s=>s.items.forEach(i=>{const sl=num(i.sl);ws.addRow([fmtD(s.head.ngay),s.code,FORMS[s.type].name,i.ma||'',i.ten,i.dvt,s.type==='A'?sl:null,s.type==='T'||s.type==='N'?sl:null,s.head.hang_muc||'']);r++;}));
-    const last=r-1;
-    // Tổng còn tại đội
-    ws.getColumn(11).width=34;ws.getColumn(12).width=9;ws.getColumn(13).width=11;ws.getColumn(14).width=11;ws.getColumn(15).width=12;
-    const c0=ws.getCell('K3');ws.getCell('K3').value='Thiết bị';ws.getCell('L3').value='ĐVT';ws.getCell('M3').value='Tổng xuất';ws.getCell('N3').value='Tổng trả';ws.getCell('O3').value='Còn tại đội';
-    ['K3','L3','M3','N3','O3'].forEach(a=>{const c=ws.getCell(a);c.font={bold:true,color:{argb:'FFFFFFFF'},name:'Times New Roman'};c.fill={type:'pattern',pattern:'solid',fgColor:{argb:'FF1F3864'}};c.alignment={horizontal:'center',vertical:'middle',wrapText:true};});
-    const seen=[];ss.forEach(s=>s.items.forEach(i=>{if(!seen.find(x=>x[0]===i.ten&&x[1]===i.dvt))seen.push([i.ten,i.dvt]);}));
-    seen.forEach(([ten,dvt],k)=>{const rr=4+k;ws.getCell('K'+rr).value=ten;ws.getCell('L'+rr).value=dvt;
-      ws.getCell('M'+rr).value={formula:`SUMIFS($G$4:$G$${last},$E$4:$E$${last},K${rr},$F$4:$F$${last},L${rr})`};
-      ws.getCell('N'+rr).value={formula:`SUMIFS($H$4:$H$${last},$E$4:$E$${last},K${rr},$F$4:$F$${last},L${rr})`};
-      ws.getCell('O'+rr).value={formula:`M${rr}-N${rr}`};
-      ['K','L','M','N','O'].forEach(c=>{const x=ws.getCell(c+rr);x.border=BORD;x.alignment={vertical:'middle',wrapText:true};});});
-    [12,20,26,10,40,8,11,11,18].forEach((w,i)=>ws.getColumn(i+1).width=w);
-    ws.views=[{state:'frozen',ySplit:3}];
-    ws.eachRow((row,n)=>{if(n>=4)for(let c=1;c<=9;c++){const x=row.getCell(c);x.border=BORD;x.alignment={vertical:'middle',wrapText:true};}});
-    w0.addRow([g,ws.name,ss.filter(s=>s.type==='A').length,ss.filter(s=>s.type==='T').length,ss.filter(s=>s.type==='N').length,ss.reduce((a,s)=>a+s.items.length,0),'']);
+  const data=names.map(g=>({g,rows:agg(groups[g])}));
+  const nR=CAT.length;
+  title(w0,'TỔNG HỢP VẬT TƯ THIẾT BỊ NTP-ĐTC ĐANG NHẬN · DỰ ÁN HH12 CỔ LOA (đang nhận = xuất − trả)',6+names.length+2);
+  w0.addRow([]);
+  w0.addRow([...tblHdr,...names,'Tổng xuất','Tổng trả','NTP-ĐTC đang nhận']);hdr(w0,4);
+  const extraKeys=[];data.forEach(d=>d.rows.slice(nR).forEach(o=>{const k=o.ten+'|'+o.dvt;if(!extraKeys.includes(k))extraKeys.push(k);}));
+  const rowsAll=[...CAT.map(c=>({ma:c[0],ten:c[1],grp:GRP(c[0]),dvt:c[2],k:c[0]})),...extraKeys.map(k=>{const [ten,dvt]=k.split('|');return {ma:'',ten,grp:'Vật tư khác',dvt,k};})];
+  rowsAll.forEach((r,idx)=>{
+    const vals=data.map(d=>{const o=CAT.some(c=>c[0]===r.k)?d.rows[idx]:d.rows.slice(nR).find(x=>x.ten+'|'+x.dvt===r.k);return o||{x:0,t:0};});
+    const tx=vals.reduce((a,o)=>a+o.x,0),tt=vals.reduce((a,o)=>a+o.t,0);
+    const rn=5+idx;const row=w0.addRow([idx+1,r.ma,r.ten,r.grp,r.dvt,...vals.map(o=>o.x-o.t),tx,tt,null]);
+    const cx=6+names.length;row.getCell(cx+2).value={formula:`${w0.getColumn(cx).letter}${rn}-${w0.getColumn(cx+1).letter}${rn}`,result:tx-tt};
   });
-  if(!names.length)w0.addRow(['Chưa có phiếu hoàn tất trong danh sách đã chọn']);
-  [30,26,14,14,14,16,20].forEach((w,i)=>w0.getColumn(i+1).width=w);box(w0,5);w0.views=[{state:'frozen',ySplit:4}];
+  const lastR=4+rowsAll.length;
+  if(names.length||true){totalRow(w0,lastR+1,6+names.length+2,'TỔNG SỐ MÃ THIẾT BỊ: '+rowsAll.length,Array.from({length:names.length+3},(_,k)=>6+k),5,lastR);}
+  styleRows(w0,5,lastR,6+names.length+2);
+  [6,12,26,22,8].forEach((w,i)=>w0.getColumn(i+1).width=w);for(let k=0;k<names.length;k++)w0.getColumn(6+k).width=14;[12,12,18].forEach((w,k)=>w0.getColumn(6+names.length+k).width=w);
+  w0.views=[{state:'frozen',xSplit:5,ySplit:4}];
+  w0.getRow(4).height=42;
+  // sheet từng nhà thầu, gom dòng theo 23 mã
+  const usedN=usedNames;
+  names.forEach((g,gi)=>{
+    const ws=wb.addWorksheet(shName(g));const rows=data[gi].rows;
+    title(ws,'THỐNG KÊ XUẤT / TRẢ VẬT TƯ THIẾT BỊ · '+g.toUpperCase(),8);ws.addRow([]);
+    ws.addRow([...tblHdr,'Tổng xuất','Tổng trả','Đang nhận (xuất − trả)']);hdr(ws,4);
+    rows.forEach((o,idx)=>{const rn=5+idx;const row=ws.addRow([idx+1,o.ma,o.ten,o.grp,o.dvt,o.x,o.t,null]);row.getCell(8).value={formula:`F${rn}-G${rn}`,result:o.x-o.t};});
+    const lr=4+rows.length;totalRow(ws,lr+1,8,'TỔNG SỐ MÃ THIẾT BỊ: '+rows.length,[6,7,8],5,lr);styleRows(ws,5,lr,8);
+    [6,12,28,22,8,13,13,20].forEach((w,i)=>ws.getColumn(i+1).width=w);ws.getRow(4).height=34;ws.views=[{state:'frozen',ySplit:4}];
+    // chi tiết theo phiếu (gom theo mã, đúng trật tự 23 loại)
+    let r=lr+4;ws.getCell(r-1,1).value='CHI TIẾT THEO PHIẾU';ws.getCell(r-1,1).font={bold:true,name:'Times New Roman',color:{argb:NAVY}};
+    ['Ngày','Mã phiếu','Loại phiếu','Mã TB','Tên thiết bị','ĐVT','SL xuất','SL trả'].forEach((h,c)=>ws.getCell(r,c+1).value=h);
+    const hr=ws.getRow(r);hr.font={bold:true,color:{argb:'FFFFFFFF'},name:'Times New Roman'};hr.fill={type:'pattern',pattern:'solid',fgColor:{argb:'FF1F3864'}};hr.alignment={horizontal:'center',vertical:'middle',wrapText:true};
+    const ord=i=>{const c=codeOf(i);const k=CAT.findIndex(x=>x[0]===c);return k<0?99:k;};
+    const ss=groups[g].slice().sort((a,b)=>String(a.head.ngay_xuat||a.head.ngay||'').localeCompare(String(b.head.ngay_xuat||b.head.ngay||''))||a.code.localeCompare(b.code));
+    ss.forEach(s=>s.items.slice().sort((a,b)=>ord(a)-ord(b)).forEach(i=>{r++;const sl=num(i.sl);const vals=[fmtD(s.head.ngay_xuat||s.head.ngay),s.code,FORMS[s.type].name,codeOf(i)||i.ma||'',i.ten,i.dvt,s.type==='A'?sl:null,s.type==='T'?sl:null];vals.forEach((v,c)=>{const x=ws.getCell(r,c+1);x.value=v;x.border=BORD;x.font={name:'Times New Roman'};x.alignment={vertical:'middle',wrapText:true,horizontal:c>=4&&c<=4?'left':'center'};});}));
+  });
+  // sheet NCC (phiếu trả vật tư nhà cung cấp)
+  if(nccSs.length){const ws=wb.addWorksheet(shName('Tra NCC'));title(ws,'TRẢ VẬT TƯ THIẾT BỊ NHÀ CUNG CẤP (RA CỔNG) · HH12 CỔ LOA',8);ws.addRow([]);
+    ws.addRow(['Ngày','Mã phiếu','Nhà cung cấp','Mã TB','Tên thiết bị','ĐVT','SL trả NCC','Biển số xe']);hdr(ws,4);
+    const ord=i=>{const k=CAT.findIndex(x=>x[0]===codeOf(i));return k<0?99:k;};
+    nccSs.slice().sort((a,b)=>String(a.head.ngay||'').localeCompare(String(b.head.ngay||''))).forEach(s=>s.items.slice().sort((a,b)=>ord(a)-ord(b)).forEach(i=>ws.addRow([fmtD(s.head.ngay),s.code,s.head.don_vi||'',codeOf(i)||i.ma||'',i.ten,i.dvt,num(i.sl),s.head.bien_so||''])));
+    [12,20,26,12,36,8,13,14].forEach((w,i)=>ws.getColumn(i+1).width=w);box(ws,5);ws.views=[{state:'frozen',ySplit:4}];}
   // 2. Danh sách phiếu (mọi trạng thái)
   const w1=wb.addWorksheet('Danh sach phieu');
   w1.addRow(['Mã phiếu','Loại phiếu','Ngày lập','Số phiếu','Hạng mục','Đội / Đơn vị','Trạng thái','Số dòng thiết bị','Người lập','Giám sát phụ trách','Lý do từ chối']);hdr(w1,1);
@@ -746,7 +773,7 @@ async function viewStats(){
     const gs=calc().filter(g=>!q||g.name.toLowerCase().includes(q.toLowerCase()));
     const tx=gs.reduce((a,g)=>a+g.x,0),tt=gs.reduce((a,g)=>a+g.t,0);
     $('stsum').innerHTML=`<div><b>${gs.length}</b><span>Nhà thầu</span></div><div><b>${fmtN(tx)}</b><span>Tổng xuất</span></div><div><b>${fmtN(tt)}</b><span>Tổng trả</span></div><div><b>${fmtN(tx-tt)}</b><span>Còn tại đội</span></div>`;
-    $('stlist').innerHTML=gs.map(g=>{const on=open===g.name;const rows=Object.values(g.items).sort((a,b)=>a.ten.localeCompare(b.ten,'vi'));
+    $('stlist').innerHTML=gs.map(g=>{const on=open===g.name;const ci=r=>{let k=CAT.findIndex(c=>c[0]===r.ma);if(k<0){const m=String(r.ten).match(/\(([A-Z0-9-]+)\)\s*$/);if(m)k=CAT.findIndex(c=>c[0]===m[1]);}return k<0?99:k;};const rows=Object.values(g.items).sort((a,b)=>ci(a)-ci(b)||a.ten.localeCompare(b.ten,'vi'));
       return `<div class="panel" style="padding:0"><button class="stbtn" data-g="${esc(g.name)}" aria-expanded="${on}" style="all:unset;box-sizing:border-box;display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between;width:100%;padding:14px 16px;cursor:pointer"><b style="font-size:17px;color:var(--navy)">${esc(g.name)}</b><span><span class="badge b-done">Xuất ${fmtN(g.x)}</span> <span class="badge b-pending">Trả ${fmtN(g.t)}</span> <span class="badge ${g.x-g.t>0?'b-rejected':'b-done'}">Còn ${fmtN(g.x-g.t)}</span></span></button>
       ${on?`<div class="scroll" style="padding:0 16px 14px"><table class="t"><thead><tr><th>Mã</th><th>Thiết bị</th><th>ĐVT</th><th>Xuất</th><th>Trả</th><th>Còn tại đội</th></tr></thead><tbody>${rows.map(r=>`<tr><td>${esc(r.ma)}</td><td>${esc(r.ten)}</td><td>${esc(r.dvt)}</td><td>${fmtN(r.x)}</td><td>${fmtN(r.t)}</td><td><b>${fmtN(r.x-r.t)}</b></td></tr>`).join('')}</tbody></table><p class="hint">${g.slips.length} phiếu: ${g.slips.map(s=>`<a href="#/phieu/${s.id}">${esc(s.code)}</a>`).join(', ')}</p></div>`:''}</div>`;}).join('')||'<p class="hint">Chưa có phiếu nào đã ký xong.</p>';
     document.querySelectorAll('.stbtn').forEach(b=>b.onclick=()=>{open=open===b.dataset.g?null:b.dataset.g;draw();});
