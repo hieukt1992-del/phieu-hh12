@@ -176,6 +176,7 @@ footer{max-width:1080px;margin:0 auto;padding:0 16px 40px;color:var(--muted);fon
 /* ===================== Cấu hình ===================== */
 const ADMIN='hieukt1992@gmail.com';
 const MAIL_URL='';
+const APPROVER_ZALO='';
 const FB_CONFIG={apiKey:"AIzaSyC_wtiV4zJ-kIGwo-tyXONFMCbfirjcpjg",authDomain:"phieu-hh12.firebaseapp.com",projectId:"phieu-hh12",storageBucket:"phieu-hh12.firebasestorage.app",messagingSenderId:"73814519605",appId:"1:73814519605:web:61d66f42b5ef3b228fe67c"};
 const MOCK=(location.hostname==='localhost'||location.hostname==='127.0.0.1')&&new URLSearchParams(location.search).has('mock');
 const $=id=>document.getElementById(id);
@@ -499,6 +500,8 @@ function viewCreate(mode){
       const id=await DB.createSlip(slip);
       remember({id,code:slip.code,doi:head.doi||head.don_vi||'',at:new Date().toISOString()});
       C=null;toast('Đã gửi phiếu, chờ '+steps[fm].label+' ký.');location.hash='#/phieu/'+id;
+      const sNew={...slip,id};
+      const pz=modal(`<h3>Đã gửi phiếu ${esc(slip.code)}</h3><p class="hint" style="color:var(--ink)">Bấm nút dưới để nhắn Zalo cho GS. Phụ trách biết và ký duyệt (tin nhắn có sẵn link phiếu).</p><div class="row"><button class="btn red" id="zAp">Gửi Zalo cho GS. Phụ trách</button><button class="btn" data-m="x">Để sau</button></div>`);$('zAp').onclick=()=>zaloApprover(sNew);pz.then(()=>{});
     }catch(e){setMsg('Không gửi được phiếu: '+(e.code||e.message||'lỗi'),'err');$('submit').disabled=false;}
   };
   all();
@@ -673,6 +676,7 @@ function renderSlip(s){
   else if(s.status==='pending'){
     act=!U?`<p class="hint">Phiếu đang chờ <b>${esc(cur(s).label)}</b> ký. Cấp duyệt đăng nhập Google để ký.</p><div class="row"><button class="btn blue" id="aIn">Đăng nhập để ký</button></div>`
       :`<p class="hint">Phiếu đang chờ <b>${esc(cur(s).label)}</b> ký${ME.member?'. Chưa đến lượt vai trò của bạn.':'. Tài khoản của bạn chưa được cấp quyền ký.'}</p>`;}
+  if(s.status==='pending')act+=`<div class="row"><button class="btn line" id="aZaloAp">Nhắn Zalo cho GS. Phụ trách để ký</button></div>`;
   if(s.status==='rejected')act+=`<div class="msg err"><b>Phiếu bị từ chối</b>${s.rejectedBy?' bởi '+esc(s.rejectedBy):''}: ${esc(s.rejectReason||'không có lý do')}</div>`;
   if(s.status==='done')act+=`<div class="row"><button class="btn red" id="aZalo">Gửi Zalo (PDF)</button><button class="btn blue" id="aPdf">Tải PDF</button><button class="btn" id="aXls">Tải Excel</button></div>${s.head.sdt&&ME.member?`<div class="row"><button class="btn line" id="aZaloTo">Gửi Zalo cho ${esc(s.head.sdt)} (link phiếu)</button></div>`:''}${MAIL_URL?`<div class="row"><button class="btn line" id="aMail">${U?'Gửi PDF về email '+esc(U.email):'Đăng nhập Google để nhận PDF qua email'}</button></div>`:''}`;
   if(ME.isAdmin)act+=`<div class="row"><button class="btn line sm" id="aDel" style="color:var(--bad);border-color:var(--bad)">Xoá phiếu này</button></div>`;
@@ -684,7 +688,7 @@ function renderSlip(s){
   fitPreview($('pvbox'));
   $('aCopy').onclick=async()=>{try{await navigator.clipboard.writeText(slipLink(s.id));toast('Đã sao chép link phiếu');}catch(e){prompt('Sao chép link:',slipLink(s.id));}};
   $('aShare').onclick=()=>{const u=slipLink(s.id);if(navigator.share)navigator.share({title:'Phiếu '+s.code,text:'Phiếu '+s.code+(s.status==='done'?' đã ký xong, mở link để in':' cần ký'),url:u}).catch(()=>{});else $('aCopy').click();};
-  if($('aIn'))$('aIn').onclick=login;if($('aPdf'))$('aPdf').onclick=()=>exportPdf(s,'dl');if($('aZalo'))$('aZalo').onclick=()=>exportPdf(s,'zalo');if($('aZaloTo'))$('aZaloTo').onclick=()=>openZalo(s);if($('aMail'))$('aMail').onclick=async()=>{const bt=$('aMail');try{if(!U){await login();for(let i=0;i<20&&!U;i++)await new Promise(r=>setTimeout(r,250));if(!U)return;}bt.disabled=true;toast('Đang gửi PDF về email…');const to=await sendMail(s);toast('Đã gửi PDF về '+to+'. Kiểm tra hộp thư (cả Spam).');}catch(e){toast('Không gửi được mail: '+(e.message||'lỗi'));}bt.disabled=false;};if($('aXls'))$('aXls').onclick=()=>exportXlsx([s],{name:'Excel_'+s.code,mode:'dl'});
+  if($('aIn'))$('aIn').onclick=login;if($('aPdf'))$('aPdf').onclick=()=>exportPdf(s,'dl');if($('aZalo'))$('aZalo').onclick=()=>exportPdf(s,'zalo');if($('aZaloTo'))$('aZaloTo').onclick=()=>openZalo(s);if($('aZaloAp'))$('aZaloAp').onclick=()=>zaloApprover(s);if($('aMail'))$('aMail').onclick=async()=>{const bt=$('aMail');try{if(!U){await login();for(let i=0;i<20&&!U;i++)await new Promise(r=>setTimeout(r,250));if(!U)return;}bt.disabled=true;toast('Đang gửi PDF về email…');const to=await sendMail(s);toast('Đã gửi PDF về '+to+'. Kiểm tra hộp thư (cả Spam).');}catch(e){toast('Không gửi được mail: '+(e.message||'lỗi'));}bt.disabled=false;};if($('aXls'))$('aXls').onclick=()=>exportXlsx([s],{name:'Excel_'+s.code,mode:'dl'});
   if($('aDel'))$('aDel').onclick=()=>delSlip(s);
   if($('aSign'))$('aSign').onclick=()=>doSign(s);if($('aRej'))$('aRej').onclick=()=>doReject(s);
 }
@@ -695,6 +699,14 @@ async function openZalo(s){
   try{await navigator.clipboard.writeText(msg);copied=true;}catch(e){}
   toast(copied?'Đã sao chép tin nhắn. Dán vào khung chat Zalo rồi gửi.':'Mở Zalo, hãy gửi link phiếu: '+slipLink(s.id));
   window.open('https://zalo.me/'+zaloPhone(s.head.sdt),'_blank');
+}
+const zaloApMsg=s=>`Phiếu ${s.code} (${FORMS[s.type].name}) của ${who(s)} đã ký, chờ GS. Phụ trách duyệt.\nMở link để ký duyệt: ${slipLink(s.id)}`;
+async function zaloApprover(s){
+  const msg=zaloApMsg(s);
+  if(navigator.share){try{await navigator.share({text:msg});return;}catch(e){if(e&&e.name==='AbortError')return;}}
+  let copied=false;try{await navigator.clipboard.writeText(msg);copied=true;}catch(e){}
+  toast(copied?'Đã sao chép tin nhắn. Dán vào Zalo gửi GS. Phụ trách.':'Mở Zalo và gửi link: '+slipLink(s.id));
+  window.open(APPROVER_ZALO?'https://zalo.me/'+zaloPhone(APPROVER_ZALO):'https://chat.zalo.me/','_blank');
 }
 async function doSign(s){
   const sig=ME.profile&&ME.profile.signature;
