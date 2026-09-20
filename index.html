@@ -175,6 +175,7 @@ footer{max-width:1080px;margin:0 auto;padding:0 16px 40px;color:var(--muted);fon
 <script type="module">
 /* ===================== Cấu hình ===================== */
 const ADMIN='hieukt1992@gmail.com';
+const MAIL_URL='';
 const FB_CONFIG={apiKey:"AIzaSyC_wtiV4zJ-kIGwo-tyXONFMCbfirjcpjg",authDomain:"phieu-hh12.firebaseapp.com",projectId:"phieu-hh12",storageBucket:"phieu-hh12.firebasestorage.app",messagingSenderId:"73814519605",appId:"1:73814519605:web:61d66f42b5ef3b228fe67c"};
 const MOCK=(location.hostname==='localhost'||location.hostname==='127.0.0.1')&&new URLSearchParams(location.search).has('mock');
 const $=id=>document.getElementById(id);
@@ -194,13 +195,13 @@ const closeModal=()=>{$('modal').innerHTML='';};
 /* ===================== Danh mục ===================== */
 const CAT=[["RL-25","Ringlock 2.5m","cây"],["RL-15","Ringlock 1.5m","cây"],["RL-10","Ringlock 1.0m","cây"],["GN-12","Giằng ngang 1.2m","cây"],["GN-06","Giằng ngang 0.6m","cây"],["GX-1215","Giằng chéo 1.2x1.5m","cây"],["GX-0615","Giằng chéo 0.6x1.5m","cây"],["KD-38","Kích đế d38x600","Cái"],["KU-38","Kích U d38x600","Cái"],["KU-CS","Kích U console","Cái"],["KU-KD","Kích U kẹp đôi","Cái"],["TH100-4","Thép hộp 50x100x4m","Cái"],["TH100-3","Thép hộp 50x100x3m","Cái"],["TH100-2","Thép hộp 50x100x2m","Cái"],["TH50-6","Thép hộp 50x50x6m","m"],["TH50-4","Thép hộp 50x50x4m","m"],["TH50-3","Thép hộp 50x50x3m","m"],["TH50-2","Thép hộp 50x50x2m","m"],["PK-TG","Tuýp gông hệ chống","m"],["PK-CU","Cùm","cái"],["PK-GO","Gông","cái"],["PK-TY","Ty","m"],["PK-OB","Óc bát","con"]];
 const LISTS={DOI:['An Phát','BCH','Đỗ Đình Tán','ĐTC Khoa','ĐTC Liên Copha','ĐTC Trường','ĐTC Xây Lắp Copha','Đức Hiểu','Gia Phạm','Hải Đăng','Hòa Thùy','Hoàng Văn Tiến','Lê Văn Thuật','Minh Sơn','NTP Bảo Hưng','NTP Gia Phong','NTP Neo','NTP Quang Thái','NTP Trung Hải','Nguyễn Đức Kiên','Tổ Thép Lương','Tuấn Anh','UTCONTS'],HM:['Tháp khách sạn','Tháp văn phòng','Khối podium']};
-const HEADA=[['ngay','Ngày lập phiếu','date'],['so','Số phiếu','text'],['hang_muc','Hạng mục','HM'],['doi','Đội thi công (nhà thầu phụ)','DOI'],['ngay_dn','Ngày đề nghị','date']];
+const HEADA=[['ngay','Ngày lập phiếu','date'],['so','Số phiếu','text'],['hang_muc','Hạng mục','HM'],['doi','Đội thi công (nhà thầu phụ)','DOI'],['ngay_dn','Ngày đề nghị','date'],['sdt','Số điện thoại Zalo của người đề nghị','tel']];
 const CHAINA=k=>[['nguoi_de_nghi','Người đề nghị'],['thu_kho','Thủ kho','skip'],['gs_tctc','GS. TCTC','skip'],['gs_phu_trach','GS. Phụ trách'],['cht','Chỉ Huy Trưởng','skip']];
 const FORMS={
  A:{code:'PX',file:'Phieu-xuat-kho',name:'Phiếu xuất kho',sub:'Đề nghị cung cấp vật tư kiêm phiếu xuất kho',title:'PHIẾU ĐỀ NGHỊ CUNG CẤP VẬT TƯ<br>KIÊM PHIẾU XUẤT KHO',dl:'Ngày xuất',per:13,layout:'A',
-  head:[...HEADA,['ngay_xuat','Ngày xuất','date']],req:['ngay_dn','ngay_xuat'],chain:CHAINA()},
+  head:[...HEADA,['ngay_xuat','Ngày xuất','date']],req:['ngay_dn','ngay_xuat','sdt'],chain:CHAINA()},
  T:{code:'PT',file:'Phieu-tra-kho',name:'Phiếu trả kho',sub:'Đề nghị cung cấp vật tư kiêm phiếu trả kho',title:'PHIẾU ĐỀ NGHỊ CUNG CẤP VẬT TƯ<br>KIÊM PHIẾU TRẢ KHO',dl:'Ngày trả',per:13,layout:'A',
-  head:[...HEADA,['ngay_xuat','Ngày trả','date']],req:['ngay_dn','ngay_xuat'],chain:CHAINA()},
+  head:[...HEADA,['ngay_xuat','Ngày trả','date']],req:['ngay_dn','ngay_xuat','sdt'],chain:CHAINA()},
  N:{code:'NCC',file:'Phieu-tra-NCC-ra-cong',name:'Trả vật tư thiết bị NCC (phiếu đề nghị ra cổng)',sub:'Đăng ký vật tư/tài sản mang ra khỏi công trường trả nhà cung cấp',title:'ĐĂNG KÝ VẬT TƯ/TÀI SẢN MANG RA KHỎI<br>CÔNG TRƯỜNG',per:15,layout:'B',
   head:[['ngay','Ngày lập phiếu','date'],['so','Số phiếu','text'],['don_vi','Tên đơn vị (nhà cung cấp) nhận trả','text'],['nguoi','Tên người mang ra','text'],['cmnd','Số CMND','text'],['bien_so','Biển số xe','text'],['gio','Giờ mang ra','time'],['ngay_mang','Ngày mang ra','date']],req:['don_vi'],
   chain:[['don_vi','Đơn vị đăng ký (thủ kho lập)'],['thu_kho','Thủ kho','auto'],['gs_phu_trach','Giám sát phụ trách'],['cht','CHT','auto'],['an_ninh','An ninh cổng','skip']]}
@@ -307,6 +308,7 @@ async function initFirebase(){
     onAuth:cb=>Au.onAuthStateChanged(auth,u=>cb(u?{uid:u.uid,email:(u.email||'').toLowerCase(),name:u.displayName||u.email,photo:u.photoURL||''}:null)),
     signIn:()=>Au.signInWithPopup(auth,new Au.GoogleAuthProvider()),
     signOut:()=>Au.signOut(auth),
+    idToken:async()=>auth.currentUser?auth.currentUser.getIdToken():null,
     getAllowed:async e=>{const s=await F.getDoc(D('allowed/'+e));return s.exists()?s.data():null;},
     listAllowed:async()=>(await F.getDocs(F.collection(fs,'allowed'))).docs.map(d=>({email:d.id,...d.data()})),
     setAllowed:(e,o)=>F.setDoc(D('allowed/'+e),o),
@@ -334,6 +336,7 @@ function initMock(){
     onAuth:cb=>{cbs.push(cb);cb(cur());return()=>{};},
     signIn:async()=>{if(!cur())localStorage.setItem('mockUser',JSON.stringify({uid:'u1',email:'test@x.vn',name:'Test'}));emit();},
     signOut:async()=>{localStorage.removeItem('mockUser');emit();},
+    idToken:async()=>'mock-token',
     getAllowed:async e=>ld().allowed[e]||null,
     listAllowed:async()=>Object.entries(ld().allowed).map(([email,v])=>({email,...v})),
     setAllowed:async(e,o)=>{const d=ld();d.allowed[e]=o;sv(d);},
@@ -389,6 +392,7 @@ async function onAuth(u){
     }catch(e){toast('Không đọc được quyền tài khoản: '+(e.code||e.message));}
   }
   renderChrome();route();
+  if(u)setTimeout(autoMail,1500);
 }
 const needLogin=(msg)=>{app.innerHTML=`<div class="panel"><h2>Cần đăng nhập</h2><p class="hint">${msg}</p><div class="row"><button class="btn blue" id="goIn">Đăng nhập Google</button></div></div>`;$('goIn').onclick=login;};
 const needMember=()=>{app.innerHTML=`<div class="panel"><h2>Tài khoản chưa được cấp quyền ký</h2><p class="hint">Bạn đang đăng nhập bằng <b>${esc(U.email)}</b>. Gửi email này cho quản trị (${ADMIN}) để được thêm vào danh sách cấp duyệt và gán vai trò.</p></div>`;};
@@ -445,7 +449,7 @@ function viewCreate(mode){
       if(LISTS[t]){const list=LISTS[t],other=st().head['_o_'+k]||(v&&!list.includes(v));
         return `<div style="display:flex;flex-direction:column;gap:4px"><label class="f" for="h-${k}">${l}<select id="h-${k}" data-s="${k}"><option value="">— Chọn —</option>${list.map(x=>`<option ${!other&&v===x?'selected':''}>${esc(x)}</option>`).join('')}<option value="__other" ${other?'selected':''}>Khác (nhập tên)</option></select></label>${other?`<input data-h="${k}" aria-label="${l} - nhập tên khác" placeholder="Nhập tên" value="${esc(v)}">`:''}</div>`;}
       const rq=F().req.includes(k);
-      return `<label class="f" for="h-${k}">${l}${rq?' <b style="color:var(--bad)" aria-hidden="true">*</b>':''}<input id="h-${k}" data-h="${k}" type="${t}" ${rq?'required aria-required="true"':''} value="${esc(v)}" ${k==='cmnd'?'autocomplete="off" inputmode="numeric"':''}></label>`;}).join('');
+      return `<label class="f" for="h-${k}">${l}${rq?' <b style="color:var(--bad)" aria-hidden="true">*</b>':''}<input id="h-${k}" data-h="${k}" type="${t}" ${rq?'required aria-required="true"':''} value="${esc(v)}" ${k==='cmnd'?'autocomplete="off" inputmode="numeric"':''}${k==='sdt'?' autocomplete="tel" inputmode="tel" placeholder="09xx xxx xxx"':''}></label>`;}).join('');
   };
   const itemHtml=c=>{const x=st().sel[c[0]]||{},on=!!x.on;
     return `<div class="item ${on?'on':''}" data-code="${c[0]}"><label class="pick" for="c-${c[0]}"><input type="checkbox" id="c-${c[0]}" ${on?'checked':''}><span class="code">${esc(c[0])}</span><span class="nm">${esc(c[1])}</span><span class="u">${esc(c[2])}</span></label><input class="qty" id="q-${c[0]}" inputmode="decimal" placeholder="SL" enterkeyhint="done" aria-label="Số lượng ${esc(c[1])}" value="${esc(x.sl||'')}"></div>`;};
@@ -476,6 +480,7 @@ function viewCreate(mode){
     const miss=f.req.filter(k=>!String(s.head[k]||'').trim());
     document.querySelectorAll('#head .invalid').forEach(x=>x.classList.remove('invalid'));
     if(miss.length){miss.forEach(k=>{const el=$('h-'+k);if(el)el.classList.add('invalid');});setMsg('Bắt buộc điền: '+miss.map(k=>f.head.find(h=>h[0]===k)[1]).join(', ')+'.','err');const el=$('h-'+miss[0]);if(el){el.scrollIntoView({block:'center'});el.focus();}return;}
+    if(s.head.sdt!==undefined&&String(s.head.sdt).trim()){const d=String(s.head.sdt).replace(/[\s.\-()]/g,'');if(!/^(0|\+?84)\d{9}$/.test(d)){const el=$('h-sdt');if(el){el.classList.add('invalid');el.scrollIntoView({block:'center'});el.focus();}setMsg('Số điện thoại chưa đúng (10 số, ví dụ 0912345678).','err');return;}s.head.sdt=d;}
     const items=itemsOf(s);
     if(!items.length){setMsg('Tick ít nhất một thiết bị.','err');return;}
     if(items.some(i=>!String(i.sl).trim())){setMsg('Còn thiết bị đã tick nhưng chưa điền số lượng.','err');return;}
@@ -514,17 +519,42 @@ async function deliverFile(name,blob,mime,mode){
   if(!canShare)dl();
   await p;
 }
+async function buildPdf(s){
+  const F=FORMS[s.type];
+  if(typeof html2canvas==='undefined'||!window.jspdf)throw new Error('chưa tải được thư viện tạo PDF, kiểm tra mạng rồi thử lại');
+  $('print').innerHTML=sheetsHtml(s.type,s.head,s.items,s.steps,s);
+  const pdf=new window.jspdf.jsPDF({unit:'mm',format:'a4',orientation:'portrait'});
+  const els=[...$('print').querySelectorAll('.sheet')];
+  for(let i=0;i<els.length;i++){const cv=await html2canvas(els[i],{scale:2,backgroundColor:'#ffffff',useCORS:true});if(i)pdf.addPage();pdf.addImage(cv.toDataURL('image/jpeg',0.92),'JPEG',0,0,210,297);}
+  const w=who(s).normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/đ/g,'d').replace(/Đ/g,'D').replace(/[^A-Za-z0-9]+/g,'-').replace(/^-|-$/g,'').slice(0,40);
+  return {name:[F.file,w,s.code].filter(Boolean).join('_')+'.pdf',blob:pdf.output('blob')};
+}
 async function exportPdf(s,mode){
-  const F=FORMS[s.type];toast('Đang tạo PDF…');
-  try{
-    if(typeof html2canvas==='undefined'||!window.jspdf)throw new Error('chưa tải được thư viện tạo PDF, kiểm tra mạng rồi thử lại');
-    $('print').innerHTML=sheetsHtml(s.type,s.head,s.items,s.steps,s);
-    const pdf=new window.jspdf.jsPDF({unit:'mm',format:'a4',orientation:'portrait'});
-    const els=[...$('print').querySelectorAll('.sheet')];
-    for(let i=0;i<els.length;i++){const cv=await html2canvas(els[i],{scale:2,backgroundColor:'#ffffff',useCORS:true});if(i)pdf.addPage();pdf.addImage(cv.toDataURL('image/jpeg',0.92),'JPEG',0,0,210,297);}
-    const w=who(s).normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/đ/g,'d').replace(/Đ/g,'D').replace(/[^A-Za-z0-9]+/g,'-').replace(/^-|-$/g,'').slice(0,40);
-    await deliverFile([F.file,w,s.code].filter(Boolean).join('_')+'.pdf',pdf.output('blob'),'application/pdf',mode);
-  }catch(e){toast('Không tạo được PDF: '+(e.message||'lỗi'));}
+  toast('Đang tạo PDF…');
+  try{const r=await buildPdf(s);await deliverFile(r.name,r.blob,'application/pdf',mode);}
+  catch(e){toast('Không tạo được PDF: '+(e.message||'lỗi'));}
+}
+/* Gửi PDF về email Google đang đăng nhập (qua Apps Script, chạy bằng Gmail của quản trị) */
+const mailedSet=()=>{try{return JSON.parse(localStorage.getItem('mailed')||'[]');}catch(e){return [];}};
+const markMailed=id=>{try{const a=mailedSet();if(!a.includes(id))a.push(id);localStorage.setItem('mailed',JSON.stringify(a.slice(-100)));}catch(e){}};
+async function sendMail(s){
+  if(!MAIL_URL)throw new Error('chưa cấu hình dịch vụ gửi mail');
+  if(!U)throw new Error('chưa đăng nhập');
+  const tok=await DB.idToken();if(!tok)throw new Error('không lấy được phiên đăng nhập');
+  const r=await buildPdf(s);
+  const b64=await new Promise((res,rej)=>{const fr=new FileReader();fr.onerror=()=>rej(new Error('không đọc được PDF'));fr.onload=()=>res(String(fr.result).split(',')[1]);fr.readAsDataURL(r.blob);});
+  const resp=await fetch(MAIL_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({idToken:tok,name:r.name,code:s.code,who:who(s),form:FORMS[s.type].name,pdf:b64})});
+  const j=await resp.json();if(!j.ok)throw new Error(j.err||'gửi mail thất bại');
+  markMailed(s.id);return j.to||U.email;
+}
+async function autoMail(){
+  if(!MAIL_URL||!U)return;
+  const done=mailedSet();const todo=mySlips().filter(x=>!done.includes(x.id)).slice(0,5);
+  for(const x of todo){
+    try{const s=await DB.getSlip(x.id);if(!s){markMailed(x.id);continue;}if(s.status!=='done')continue;
+      const to=await sendMail(s);toast('Đã gửi PDF phiếu '+s.code+' về '+to);}
+    catch(e){console.warn('autoMail',e);}
+  }
 }
 async function exportXlsx(list,opt){
   if(typeof ExcelJS==='undefined'){toast('Chưa tải được thư viện Excel, kiểm tra mạng.');return;}
@@ -644,7 +674,7 @@ function renderSlip(s){
     act=!U?`<p class="hint">Phiếu đang chờ <b>${esc(cur(s).label)}</b> ký. Cấp duyệt đăng nhập Google để ký.</p><div class="row"><button class="btn blue" id="aIn">Đăng nhập để ký</button></div>`
       :`<p class="hint">Phiếu đang chờ <b>${esc(cur(s).label)}</b> ký${ME.member?'. Chưa đến lượt vai trò của bạn.':'. Tài khoản của bạn chưa được cấp quyền ký.'}</p>`;}
   if(s.status==='rejected')act+=`<div class="msg err"><b>Phiếu bị từ chối</b>${s.rejectedBy?' bởi '+esc(s.rejectedBy):''}: ${esc(s.rejectReason||'không có lý do')}</div>`;
-  if(s.status==='done')act+=`<div class="row"><button class="btn red" id="aZalo">Gửi Zalo (PDF)</button><button class="btn blue" id="aPdf">Tải PDF</button><button class="btn" id="aXls">Tải Excel</button></div>`;
+  if(s.status==='done')act+=`<div class="row"><button class="btn red" id="aZalo">Gửi Zalo (PDF)</button><button class="btn blue" id="aPdf">Tải PDF</button><button class="btn" id="aXls">Tải Excel</button></div>${s.head.sdt&&ME.member?`<div class="row"><button class="btn line" id="aZaloTo">Gửi Zalo cho ${esc(s.head.sdt)} (link phiếu)</button></div>`:''}${MAIL_URL?`<div class="row"><button class="btn line" id="aMail">${U?'Gửi PDF về email '+esc(U.email):'Đăng nhập Google để nhận PDF qua email'}</button></div>`:''}`;
   if(ME.isAdmin)act+=`<div class="row"><button class="btn line sm" id="aDel" style="color:var(--bad);border-color:var(--bad)">Xoá phiếu này</button></div>`;
   app.innerHTML=`<a href="#/" class="hint">← Trang chủ</a>
    <div class="row" style="justify-content:space-between;margin-top:6px"><div><div class="eyebrow">${esc(F.name)}</div><h2 style="margin:2px 0 0;font-size:24px;color:var(--navy)">${esc(s.code)}</h2><span class="hint">${esc(who(s))} · lập lúc ${esc(fmtDT(s.createdAt))}</span></div>${badge(s)}</div>
@@ -654,9 +684,17 @@ function renderSlip(s){
   fitPreview($('pvbox'));
   $('aCopy').onclick=async()=>{try{await navigator.clipboard.writeText(slipLink(s.id));toast('Đã sao chép link phiếu');}catch(e){prompt('Sao chép link:',slipLink(s.id));}};
   $('aShare').onclick=()=>{const u=slipLink(s.id);if(navigator.share)navigator.share({title:'Phiếu '+s.code,text:'Phiếu '+s.code+(s.status==='done'?' đã ký xong, mở link để in':' cần ký'),url:u}).catch(()=>{});else $('aCopy').click();};
-  if($('aIn'))$('aIn').onclick=login;if($('aPdf'))$('aPdf').onclick=()=>exportPdf(s,'dl');if($('aZalo'))$('aZalo').onclick=()=>exportPdf(s,'zalo');if($('aXls'))$('aXls').onclick=()=>exportXlsx([s],{name:'Excel_'+s.code,mode:'dl'});
+  if($('aIn'))$('aIn').onclick=login;if($('aPdf'))$('aPdf').onclick=()=>exportPdf(s,'dl');if($('aZalo'))$('aZalo').onclick=()=>exportPdf(s,'zalo');if($('aZaloTo'))$('aZaloTo').onclick=()=>openZalo(s);if($('aMail'))$('aMail').onclick=async()=>{const bt=$('aMail');try{if(!U){await login();for(let i=0;i<20&&!U;i++)await new Promise(r=>setTimeout(r,250));if(!U)return;}bt.disabled=true;toast('Đang gửi PDF về email…');const to=await sendMail(s);toast('Đã gửi PDF về '+to+'. Kiểm tra hộp thư (cả Spam).');}catch(e){toast('Không gửi được mail: '+(e.message||'lỗi'));}bt.disabled=false;};if($('aXls'))$('aXls').onclick=()=>exportXlsx([s],{name:'Excel_'+s.code,mode:'dl'});
   if($('aDel'))$('aDel').onclick=()=>delSlip(s);
   if($('aSign'))$('aSign').onclick=()=>doSign(s);if($('aRej'))$('aRej').onclick=()=>doReject(s);
+}
+const zaloPhone=p=>{const d=String(p||'').replace(/\D/g,'');return d.startsWith('84')?d:d.replace(/^0/,'84');};
+const zaloMsg=s=>`Phiếu ${s.code} (${FORMS[s.type].name}) của ${who(s)} đã được duyệt hoàn tất.\nXem và tải phiếu (PDF/Excel): ${slipLink(s.id)}`;
+async function openZalo(s){
+  const msg=zaloMsg(s);let copied=false;
+  try{await navigator.clipboard.writeText(msg);copied=true;}catch(e){}
+  toast(copied?'Đã sao chép tin nhắn. Dán vào khung chat Zalo rồi gửi.':'Mở Zalo, hãy gửi link phiếu: '+slipLink(s.id));
+  window.open('https://zalo.me/'+zaloPhone(s.head.sdt),'_blank');
 }
 async function doSign(s){
   const sig=ME.profile&&ME.profile.signature;
@@ -680,6 +718,7 @@ async function doSign(s){
     const finished=nextManual<0;
     await DB.updateSlip(s.id,{steps,currentStep:finished?steps.length:nextManual,status:finished?'done':'pending'});
     toast(finished?(missing.length?'Đã ký xong. Chưa có chữ ký mẫu của '+missing.join(', ')+' nên để trống (tải lên ở Quản trị).':'Đã ký xong, phiếu hoàn tất. Xuất PDF gửi Zalo cho giám sát in.'):'Đã ký, chuyển cấp tiếp theo.');
+    if(finished&&s.head.sdt){const pz=modal(`<h3>Đã duyệt xong</h3><p class="hint" style="color:var(--ink)">Gửi link phiếu <b>${esc(s.code)}</b> cho người đề nghị qua Zalo số <b>${esc(s.head.sdt)}</b>. Bấm nút dưới: tin nhắn được sao chép sẵn và Zalo mở đúng số này, bạn chỉ cần dán và gửi.</p><div class="row"><button class="btn red" id="zSend">Gửi Zalo cho ${esc(s.head.sdt)}</button><button class="btn" data-m="x">Để sau</button></div>`);$('zSend').onclick=()=>openZalo(s);await pz;}
   }catch(e){toast('Không ký được: '+(e.code||e.message));}
 }
 async function delSlip(s,after){
