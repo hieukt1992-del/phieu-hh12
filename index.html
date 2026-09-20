@@ -213,6 +213,7 @@ const firstManual=k=>FORMS[k].chain.findIndex((c,i)=>i>0&&!c[2]);
 const signedN=s=>s.steps.filter(x=>x.sig).length;
 const itemsOf=st=>{const out=[];CAT.forEach(c=>{const x=st.sel[c[0]];if(x&&x.on)out.push({ma:c[0],ten:c[1]+' ('+c[0]+')',dvt:c[2],sl:x.sl||''});});st.custom.filter(filled).forEach(r=>out.push({ten:r.ten||'',dvt:r.dvt||'',sl:r.sl||''}));return out;};
 const grpOf=c=>c.startsWith('TH100')?'Thép hộp 50x100':c.startsWith('TH50')?'Thép hộp 50x50':c.startsWith('RL')?'Hệ giáo Ringlock':c.startsWith('GN')?'Giằng ngang':c.startsWith('GX')?'Giằng chéo':c.startsWith('K')?'Kích chống':'Phụ kiện hệ chống';
+const slugOf=(nm,ncc)=>(ncc?'NCC-':'')+(String(nm||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/đ/g,'d').replace(/Đ/g,'D').toUpperCase().replace(/[^A-Z0-9]+/g,'-').replace(/^-+|-+$/g,'')||'KHAC');
 const newCode=k=>{const d=new Date();return FORMS[k].code+'-'+String(d.getFullYear()).slice(2)+pad2(d.getMonth()+1)+pad2(d.getDate())+'-'+Math.random().toString(36).slice(2,6).toUpperCase();};
 
 /* ===================== Tờ giấy ===================== */
@@ -314,6 +315,7 @@ async function initFirebase(){
     setStamp:(r,o)=>F.setDoc(D('stamps/'+r),o),
     getProfile:async u=>{const s=await F.getDoc(D('profiles/'+u));return s.exists()?s.data():null;},
     saveProfile:(u,o)=>F.setDoc(D('profiles/'+u),o,{merge:true}),
+    syncSeq:async(key,min)=>{const r=F.doc(fs,'counters',key);return F.runTransaction(fs,async t=>{const d=await t.get(r);const c=d.exists()?d.data().n:0;if(min>c)t.set(r,{n:min});return Math.max(c,min);});},
     nextSeq:async key=>{const r=F.doc(fs,'counters',key);return F.runTransaction(fs,async t=>{const d=await t.get(r);const n=(d.exists()?d.data().n:0)+1;t.set(r,{n});return n;});},
     createSlip:async o=>(await F.addDoc(F.collection(fs,'slips'),{...o,createdAt:F.serverTimestamp()})).id,
     getSlip:async id=>{const s=await F.getDoc(D('slips/'+id));return s.exists()?{id,...norm(s.data())}:null;},
@@ -340,6 +342,7 @@ function initMock(){
     setStamp:async(r,o)=>{const d=ld();d.stamps=d.stamps||{};d.stamps[r]=o;sv(d);},
     getProfile:async u=>ld().profiles[u]||null,
     saveProfile:async(u,o)=>{const d=ld();d.profiles[u]={...(d.profiles[u]||{}),...o};sv(d);},
+    syncSeq:async(key,min)=>{const d=ld();d.counters=d.counters||{};d.counters[key]=Math.max(d.counters[key]||0,min);sv(d);return d.counters[key];},
     nextSeq:async key=>{const d=ld();d.counters=d.counters||{};d.counters[key]=(d.counters[key]||0)+1;sv(d);return d.counters[key];},
     createSlip:async o=>{const d=ld(),id='s'+Math.random().toString(36).slice(2,10);d.slips[id]={...o,createdAt:Date.now()};sv(d);return id;},
     getSlip:async id=>{const s=ld().slips[id];return s?{id,...s}:null;},
@@ -483,7 +486,7 @@ function viewCreate(mode){
     try{
       const steps=newSteps(kind),fm=firstManual(kind),sname=ncc?ME.name:C.signer.trim();steps[0]=ncc?{...steps[0],name:sname,email:U.email,sig:mySig,at:new Date().toISOString()}:{...steps[0],name:sname,sig:padObj.data(),at:new Date().toISOString(),guest:true};
       const head={};Object.entries(s.head).forEach(([k,v])=>{if(!k.startsWith('_o_')&&typeof v==='string'&&v.trim())head[k]=v.trim();});
-      const nm=head.doi||head.don_vi||'';const slug=(ncc?'NCC-':'')+(nm.normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/đ/g,'d').replace(/Đ/g,'D').toUpperCase().replace(/[^A-Z0-9]+/g,'-').replace(/^-+|-+$/g,'')||'KHAC');
+      const slug=slugOf(head.doi||head.don_vi,ncc);
       let seq=null;try{seq=await DB.nextSeq(slug);}catch(e){}
       const so=seq?'HH12_'+slug+'_'+String(seq).padStart(3,'0'):'HH12_'+slug+'_'+Date.now().toString(36).toUpperCase().slice(-5);
       head.so=so;
@@ -769,9 +772,11 @@ async function viewAdmin(){
    ${STAMPS.map(r=>`<div class="card" style="padding:14px" data-st="${r}"><div class="row" style="justify-content:space-between"><b>${esc(ROLES[r])}</b><span class="hint">${stamps[r]&&stamps[r].sig?'Đã có chữ ký mẫu':'Chưa có'}</span></div>
     <div class="grid"><label class="f">Họ tên in trên phiếu<input data-stn="${r}" value="${esc((stamps[r]&&stamps[r].name)||'')}" placeholder="Nguyễn Văn A"></label><label class="f">Ảnh chữ ký (PNG/JPG)<input type="file" accept="image/*" data-stf="${r}"></label></div>
     ${stamps[r]&&stamps[r].sig?`<div class="sigprev"><img src="${stamps[r].sig}" alt="Chữ ký mẫu ${esc(ROLES[r])}"></div>`:''}<div class="row"><button class="btn blue sm" data-stsave="${r}">Lưu chữ ký mẫu</button></div></div>`).join('')}</section>
+   <section class="panel"><h2>Bộ đếm số phiếu</h2><p class="hint">Mã phiếu tự sinh dạng HH12_TÊN-ĐỘI_001. Bấm nút dưới để bộ đếm của từng đội tiếp nối số phiếu đã có (làm 1 lần, bấm lại không hại).</p><div class="row"><button class="btn blue sm" id="syncSeq">Đồng bộ bộ đếm với phiếu cũ</button><span id="syncMsg" class="hint"></span></div></section>
    <section class="panel"><h2>Thêm người ký</h2><div class="grid"><label class="f">Email Google<input id="ne" type="email" placeholder="ten@gmail.com" autocomplete="off"></label><label class="f">Họ tên<input id="nn" placeholder="Nguyễn Văn A"></label></div>${roleBox('__new',[])}<div class="row"><button class="btn blue" id="add">Thêm</button><span id="msg" class="msg" hidden></span></div></section>
    <section class="panel"><h2>Danh sách (${list.length})</h2>${list.map(a=>`<div class="card" style="padding:14px"><div class="row" style="justify-content:space-between"><div><b>${esc(a.name||'')}</b><br><small class="hint">${esc(a.email)}${a.admin?' · quản trị':''}</small></div>${a.email===ADMIN?'':`<button class="btn sm" data-del="${esc(a.email)}">Xoá</button>`}</div>${roleBox(a.email,a.roles||[])}</div>`).join('')}</section>`;
   const setMsg=(t,k)=>{$('msg').hidden=!t;$('msg').textContent=t||'';$('msg').className='msg '+(k||'');};
+  $('syncSeq').onclick=async()=>{try{const all=await DB.listSlips();const cnt={};all.forEach(s=>{const k=slugOf(s.head.doi||s.head.don_vi,s.type==='N');cnt[k]=(cnt[k]||0)+1;});const out=[];for(const k of Object.keys(cnt)){const n=await DB.syncSeq(k,cnt[k]);out.push(k+': '+n);}$('syncMsg').textContent=out.length?'Đã đồng bộ — '+out.join(' · '):'Chưa có phiếu.';}catch(e){$('syncMsg').textContent='Lỗi: '+(e.code||e.message);}};
   const imgToSig=file=>new Promise((res,rej)=>{const fr=new FileReader();fr.onerror=()=>rej(new Error('không đọc được ảnh'));fr.onload=()=>{const im=new Image();im.onerror=()=>rej(new Error('ảnh không hợp lệ'));im.onload=()=>{
     const k=Math.min(1,420/im.width),w=Math.max(1,Math.round(im.width*k)),h=Math.max(1,Math.round(im.height*k));const cv=document.createElement('canvas');cv.width=w;cv.height=h;const cx=cv.getContext('2d');cx.drawImage(im,0,0,w,h);
     const d=cx.getImageData(0,0,w,h),a=d.data;let x0=w,y0=h,x1=0,y1=0;
