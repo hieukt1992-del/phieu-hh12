@@ -500,11 +500,13 @@ function viewCreate(mode){
 }
 
 /* ===================== Xuất file ===================== */
-async function deliverFile(name,blob,mime){
+async function deliverFile(name,blob,mime,mode){
   const file=new File([blob],name,{type:mime});const url=URL.createObjectURL(blob);
   let canShare=false;try{canShare=!!(navigator.canShare&&navigator.share&&navigator.canShare({files:[file]}));}catch(e){}
   const mobile=/Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
   const dl=()=>{const a=document.createElement('a');a.href=url;a.download=name;document.body.appendChild(a);a.click();a.remove();};
+  if(mode==='dl'){dl();toast('Đã tải: '+name+' (thư mục Tải xuống / Downloads)');return;}
+  if(mode==='zalo'&&!canShare){dl();toast('Đã tải file. Mở Zalo và gửi file vừa tải (thư mục Tải xuống).');setTimeout(()=>window.open('https://chat.zalo.me/','_blank'),600);return;}
   const p=modal(`<h3>Đã tạo xong file</h3><p class="hint" style="color:var(--ink)">Tên file: <b>${esc(name)}</b><br>${canShare?'Bấm "Gửi / Lưu file" để gửi qua Zalo hoặc lưu vào ứng dụng Tệp (Files). ':''}${mobile?'Nếu bấm "Tải xuống", file nằm trong thư mục Tải xuống (Downloads) của điện thoại, xem trong ứng dụng Tệp / My Files.':'File nằm trong thư mục Tải xuống (Downloads) của máy.'}</p>
    <div class="row">${canShare?'<button class="btn red" id="fShare">Gửi / Lưu file (Zalo, Tệp…)</button>':''}<button class="btn blue" id="fDl">Tải xuống</button>${mime==='application/pdf'?'<button class="btn" id="fOpen">Mở xem</button>':''}<button class="btn" data-m="x">Đóng</button></div>`);
   if($('fShare'))$('fShare').onclick=()=>navigator.share({files:[file],title:name}).catch(()=>{});
@@ -512,7 +514,7 @@ async function deliverFile(name,blob,mime){
   if(!canShare)dl();
   await p;
 }
-async function exportPdf(s){
+async function exportPdf(s,mode){
   const F=FORMS[s.type];toast('Đang tạo PDF…');
   try{
     if(typeof html2canvas==='undefined'||!window.jspdf)throw new Error('chưa tải được thư viện tạo PDF, kiểm tra mạng rồi thử lại');
@@ -521,7 +523,7 @@ async function exportPdf(s){
     const els=[...$('print').querySelectorAll('.sheet')];
     for(let i=0;i<els.length;i++){const cv=await html2canvas(els[i],{scale:2,backgroundColor:'#ffffff',useCORS:true});if(i)pdf.addPage();pdf.addImage(cv.toDataURL('image/jpeg',0.92),'JPEG',0,0,210,297);}
     const w=who(s).normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/đ/g,'d').replace(/Đ/g,'D').replace(/[^A-Za-z0-9]+/g,'-').replace(/^-|-$/g,'').slice(0,40);
-    await deliverFile([F.file,w,s.code].filter(Boolean).join('_')+'.pdf',pdf.output('blob'),'application/pdf');
+    await deliverFile([F.file,w,s.code].filter(Boolean).join('_')+'.pdf',pdf.output('blob'),'application/pdf',mode);
   }catch(e){toast('Không tạo được PDF: '+(e.message||'lỗi'));}
 }
 async function exportXlsx(list,opt){
@@ -622,7 +624,7 @@ async function exportXlsx(list,opt){
   [20,30,12,12,18,24,22,12,28,28,28].forEach((w,i)=>w1.getColumn(i+1).width=w);box(w1,2);w1.views=[{state:'frozen',ySplit:1}];
   const buf=await wb.xlsx.writeBuffer();
   const fname=(opt&&opt.name)||('Thong-ke-xuat-tra-kho-HH12_'+today());
-  await deliverFile(fname+'.xlsx',new Blob([buf],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}),'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+  await deliverFile(fname+'.xlsx',new Blob([buf],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}),'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',opt&&opt.mode);
 }
 
 /* ===================== Xem phiếu, ký, từ chối ===================== */
@@ -642,7 +644,7 @@ function renderSlip(s){
     act=!U?`<p class="hint">Phiếu đang chờ <b>${esc(cur(s).label)}</b> ký. Cấp duyệt đăng nhập Google để ký.</p><div class="row"><button class="btn blue" id="aIn">Đăng nhập để ký</button></div>`
       :`<p class="hint">Phiếu đang chờ <b>${esc(cur(s).label)}</b> ký${ME.member?'. Chưa đến lượt vai trò của bạn.':'. Tài khoản của bạn chưa được cấp quyền ký.'}</p>`;}
   if(s.status==='rejected')act+=`<div class="msg err"><b>Phiếu bị từ chối</b>${s.rejectedBy?' bởi '+esc(s.rejectedBy):''}: ${esc(s.rejectReason||'không có lý do')}</div>`;
-  if(s.status==='done')act+=`<div class="row"><button class="btn red" id="aPdf">Xuất PDF (gửi Zalo cho giám sát in)</button><button class="btn blue" id="aXls">Xuất Excel phiếu</button></div>`;
+  if(s.status==='done')act+=`<div class="row"><button class="btn red" id="aZalo">Gửi Zalo (PDF)</button><button class="btn blue" id="aPdf">Tải PDF</button><button class="btn" id="aXls">Tải Excel</button></div>`;
   if(ME.isAdmin)act+=`<div class="row"><button class="btn line sm" id="aDel" style="color:var(--bad);border-color:var(--bad)">Xoá phiếu này</button></div>`;
   app.innerHTML=`<a href="#/" class="hint">← Trang chủ</a>
    <div class="row" style="justify-content:space-between;margin-top:6px"><div><div class="eyebrow">${esc(F.name)}</div><h2 style="margin:2px 0 0;font-size:24px;color:var(--navy)">${esc(s.code)}</h2><span class="hint">${esc(who(s))} · lập lúc ${esc(fmtDT(s.createdAt))}</span></div>${badge(s)}</div>
@@ -652,7 +654,7 @@ function renderSlip(s){
   fitPreview($('pvbox'));
   $('aCopy').onclick=async()=>{try{await navigator.clipboard.writeText(slipLink(s.id));toast('Đã sao chép link phiếu');}catch(e){prompt('Sao chép link:',slipLink(s.id));}};
   $('aShare').onclick=()=>{const u=slipLink(s.id);if(navigator.share)navigator.share({title:'Phiếu '+s.code,text:'Phiếu '+s.code+(s.status==='done'?' đã ký xong, mở link để in':' cần ký'),url:u}).catch(()=>{});else $('aCopy').click();};
-  if($('aIn'))$('aIn').onclick=login;if($('aPdf'))$('aPdf').onclick=()=>exportPdf(s);if($('aXls'))$('aXls').onclick=()=>exportXlsx([s],{name:'Excel_'+s.code});
+  if($('aIn'))$('aIn').onclick=login;if($('aPdf'))$('aPdf').onclick=()=>exportPdf(s,'dl');if($('aZalo'))$('aZalo').onclick=()=>exportPdf(s,'zalo');if($('aXls'))$('aXls').onclick=()=>exportXlsx([s],{name:'Excel_'+s.code,mode:'dl'});
   if($('aDel'))$('aDel').onclick=()=>delSlip(s);
   if($('aSign'))$('aSign').onclick=()=>doSign(s);if($('aRej'))$('aRej').onclick=()=>doReject(s);
 }
