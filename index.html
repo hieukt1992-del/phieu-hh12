@@ -314,6 +314,7 @@ async function initFirebase(){
     setStamp:(r,o)=>F.setDoc(D('stamps/'+r),o),
     getProfile:async u=>{const s=await F.getDoc(D('profiles/'+u));return s.exists()?s.data():null;},
     saveProfile:(u,o)=>F.setDoc(D('profiles/'+u),o,{merge:true}),
+    nextSeq:async key=>{const r=F.doc(fs,'counters',key);return F.runTransaction(fs,async t=>{const d=await t.get(r);const n=(d.exists()?d.data().n:0)+1;t.set(r,{n});return n;});},
     createSlip:async o=>(await F.addDoc(F.collection(fs,'slips'),{...o,createdAt:F.serverTimestamp()})).id,
     getSlip:async id=>{const s=await F.getDoc(D('slips/'+id));return s.exists()?{id,...norm(s.data())}:null;},
     watchSlip:(id,cb,err)=>F.onSnapshot(D('slips/'+id),s=>cb(s.exists()?{id,...norm(s.data())}:null),err),
@@ -339,6 +340,7 @@ function initMock(){
     setStamp:async(r,o)=>{const d=ld();d.stamps=d.stamps||{};d.stamps[r]=o;sv(d);},
     getProfile:async u=>ld().profiles[u]||null,
     saveProfile:async(u,o)=>{const d=ld();d.profiles[u]={...(d.profiles[u]||{}),...o};sv(d);},
+    nextSeq:async key=>{const d=ld();d.counters=d.counters||{};d.counters[key]=(d.counters[key]||0)+1;sv(d);return d.counters[key];},
     createSlip:async o=>{const d=ld(),id='s'+Math.random().toString(36).slice(2,10);d.slips[id]={...o,createdAt:Date.now()};sv(d);return id;},
     getSlip:async id=>{const s=ld().slips[id];return s?{id,...s}:null;},
     watchSlip:(id,cb)=>{const w={id,cb};ws.push(w);setTimeout(()=>push(id),0);return()=>{ws.splice(ws.indexOf(w),1);};},
@@ -435,7 +437,7 @@ function viewCreate(mode){
   const paint=()=>{const steps=newSteps(C.kind);$('pv').innerHTML=sheetsHtml(C.kind,st().head,itemsOf(st()),steps,null);fitPreview($('pvbox'));info();};
   const renderHead=()=>{
     if(!ncc){$('tabA').setAttribute('aria-pressed',C.kind==='A');$('tabT').setAttribute('aria-pressed',C.kind==='T');}
-    $('head').innerHTML=F().head.map(([k,l,t])=>{
+    $('head').innerHTML=F().head.filter(h=>h[0]!=='so').map(([k,l,t])=>{
       const v=st().head[k]||'';
       if(LISTS[t]){const list=LISTS[t],other=st().head['_o_'+k]||(v&&!list.includes(v));
         return `<div style="display:flex;flex-direction:column;gap:4px"><label class="f" for="h-${k}">${l}<select id="h-${k}" data-s="${k}"><option value="">— Chọn —</option>${list.map(x=>`<option ${!other&&v===x?'selected':''}>${esc(x)}</option>`).join('')}<option value="__other" ${other?'selected':''}>Khác (nhập tên)</option></select></label>${other?`<input data-h="${k}" aria-label="${l} - nhập tên khác" placeholder="Nhập tên" value="${esc(v)}">`:''}</div>`;}
@@ -481,7 +483,11 @@ function viewCreate(mode){
     try{
       const steps=newSteps(kind),fm=firstManual(kind),sname=ncc?ME.name:C.signer.trim();steps[0]=ncc?{...steps[0],name:sname,email:U.email,sig:mySig,at:new Date().toISOString()}:{...steps[0],name:sname,sig:padObj.data(),at:new Date().toISOString(),guest:true};
       const head={};Object.entries(s.head).forEach(([k,v])=>{if(!k.startsWith('_o_')&&typeof v==='string'&&v.trim())head[k]=v.trim();});
-      const slip={type:kind,code:newCode(kind),head,items:items.map(i=>({...i,sl:String(i.sl)})),steps,currentStep:fm,status:'pending',createdByName:sname};
+      const nm=head.doi||head.don_vi||'';const slug=(ncc?'NCC-':'')+(nm.normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/đ/g,'d').replace(/Đ/g,'D').toUpperCase().replace(/[^A-Z0-9]+/g,'-').replace(/^-+|-+$/g,'')||'KHAC');
+      let seq=null;try{seq=await DB.nextSeq(slug);}catch(e){}
+      const so=seq?'HH12_'+slug+'_'+String(seq).padStart(3,'0'):'HH12_'+slug+'_'+Date.now().toString(36).toUpperCase().slice(-5);
+      head.so=so;
+      const slip={type:kind,code:so,head,items:items.map(i=>({...i,sl:String(i.sl)})),steps,currentStep:fm,status:'pending',createdByName:sname};
       const id=await DB.createSlip(slip);
       remember({id,code:slip.code,doi:head.doi||head.don_vi||'',at:new Date().toISOString()});
       C=null;toast('Đã gửi phiếu, chờ '+steps[fm].label+' ký.');location.hash='#/phieu/'+id;
