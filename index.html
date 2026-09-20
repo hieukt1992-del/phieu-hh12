@@ -39,12 +39,15 @@ a{color:var(--blue)}
 .btn:disabled{opacity:.55;cursor:wait}
 :focus-visible{outline:3px solid #2a6fdb;outline-offset:2px}
 main{max-width:1080px;margin:0 auto;padding:22px 16px 60px}
-.hero{text-align:center;padding:18px 0 8px}
+.hero{text-align:center;padding:34px 18px 18px;border-radius:18px;color:#fff;background:linear-gradient(rgba(8,26,54,.62),rgba(8,26,54,.78)),#0b2545 url(hh12.jpg) center/cover no-repeat}
+.hero .stats span{color:#dbe6f7}
+.hero .stats b{color:#ff7a7a}
+tr.grp td{background:#dce6f5;padding:8px 12px}
 .avatar{width:150px;height:150px;border-radius:50%;margin:0 auto 14px;border:4px solid var(--blue);background:linear-gradient(160deg,#0b2545,#245cad);display:grid;place-items:center;color:#fff;font-weight:800;font-size:44px;letter-spacing:1px;box-shadow:0 10px 30px rgba(36,92,173,.25)}
 .tag{display:inline-flex;gap:8px;align-items:center;border:1px solid var(--blue);color:var(--blue);border-radius:999px;padding:4px 14px;font-size:12px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;background:#fff}
 .tag:before{content:"";width:7px;height:7px;border-radius:50%;background:var(--red)}
-.hero h1{margin:12px 0 6px;font-size:34px;line-height:1.15;color:var(--blue);font-weight:800}
-.hero p{max-width:640px;margin:0 auto;color:var(--muted)}
+.hero h1{margin:12px 0 6px;font-size:34px;line-height:1.15;color:#fff;font-weight:800;text-shadow:0 2px 8px rgba(0,0,0,.4)}
+.hero p{max-width:640px;margin:0 auto;color:#e8eefb}
 .stats{display:flex;justify-content:center;gap:34px;margin:22px 0;flex-wrap:wrap}
 .stats div{text-align:center}
 .stats b{display:block;font-size:34px;color:var(--red);font-weight:800;line-height:1.1}
@@ -315,7 +318,8 @@ async function initFirebase(){
     getSlip:async id=>{const s=await F.getDoc(D('slips/'+id));return s.exists()?{id,...norm(s.data())}:null;},
     watchSlip:(id,cb,err)=>F.onSnapshot(D('slips/'+id),s=>cb(s.exists()?{id,...norm(s.data())}:null),err),
     listSlips:async()=>(await F.getDocs(F.query(F.collection(fs,'slips'),F.orderBy('createdAt','desc'),F.limit(300)))).docs.map(d=>({id:d.id,...norm(d.data())})),
-    updateSlip:(id,o)=>F.updateDoc(D('slips/'+id),{...o,updatedAt:F.serverTimestamp()})
+    updateSlip:(id,o)=>F.updateDoc(D('slips/'+id),{...o,updatedAt:F.serverTimestamp()}),
+    deleteSlip:id=>F.deleteDoc(D('slips/'+id))
   };
 }
 function initMock(){
@@ -339,7 +343,8 @@ function initMock(){
     getSlip:async id=>{const s=ld().slips[id];return s?{id,...s}:null;},
     watchSlip:(id,cb)=>{const w={id,cb};ws.push(w);setTimeout(()=>push(id),0);return()=>{ws.splice(ws.indexOf(w),1);};},
     listSlips:async()=>Object.entries(ld().slips).map(([id,s])=>({id,...s})).sort((a,b)=>b.createdAt-a.createdAt),
-    updateSlip:async(id,o)=>{const d=ld();d.slips[id]={...d.slips[id],...o,updatedAt:Date.now()};sv(d);push(id);}
+    updateSlip:async(id,o)=>{const d=ld();d.slips[id]={...d.slips[id],...o,updatedAt:Date.now()};sv(d);push(id);},
+    deleteSlip:async id=>{const d=ld();delete d.slips[id];sv(d);push(id);}
   };
 }
 /* ===================== Trạng thái chung ===================== */
@@ -535,55 +540,75 @@ async function exportXlsx(list,opt){
   const groups={};ntpSs.forEach(s=>{const g=who(s)||'Chưa rõ';(groups[g]=groups[g]||[]).push(s);});
   const names=Object.keys(groups).sort((a,b)=>a.localeCompare(b,'vi'));
   const tblHdr=['STT','Mã thiết bị','Tên thiết bị','Nhóm thiết bị','ĐVT'];
-  const styleRows=(ws,from,to,ncol)=>{for(let r=from;r<=to;r++)for(let c=1;c<=ncol;c++){const x=ws.getCell(r,c);x.border=BORD;x.alignment={vertical:'middle',wrapText:true,horizontal:(c===1||c===2||c===5||c>5)?'center':'left'};x.font={name:'Times New Roman',bold:c===2};if(r%2===0)x.fill={type:'pattern',pattern:'solid',fgColor:{argb:LIGHT}};}};
-  const totalRow=(ws,r,ncol,label,sumCols,first,last)=>{ws.getCell(r,1).value=label;ws.mergeCells(r,1,r,5);sumCols.forEach(c=>{const L=ws.getColumn(c).letter;ws.getCell(r,c).value={formula:`SUM(${L}${first}:${L}${last})`};});for(let c=1;c<=ncol;c++){const x=ws.getCell(r,c);x.fill={type:'pattern',pattern:'solid',fgColor:{argb:GOLD}};x.font={bold:true,name:'Times New Roman'};x.border=BORD;x.alignment={vertical:'middle',horizontal:c<=5?'left':'center'};}};
+  const cell=(ws,r,c,v,o)=>{const x=ws.getCell(r,c);if(v!==undefined)x.value=v;x.border=BORD;x.alignment={vertical:'middle',wrapText:true,horizontal:(o&&o.left)?'left':'center'};x.font={name:'Times New Roman',bold:!!(o&&o.bold)};if(o&&o.fill)x.fill={type:'pattern',pattern:'solid',fgColor:{argb:o.fill}};return x;};
+  const GFILL='FFDCE6F5';
+  // ghi bảng gom nhóm: mỗi nhóm 1 dòng tổng (SUM), các dòng mã nằm trong nhóm (outline level 1, bấm dấu +/- để thu gọn)
+  const writeAgg=(ws,start,rows,nv,fc)=>{
+    const ncol=5+nv;const order=[];rows.forEach(r=>{if(!order.includes(r.grp))order.push(r.grp);});
+    let r=start,stt=0;const gRows=[];
+    order.forEach(g=>{const items=rows.filter(x=>x.grp===g);const gr=r,first=r+1,last=r+items.length;gRows.push(gr);
+      for(let c=1;c<=ncol;c++)cell(ws,gr,c,undefined,{bold:true,fill:GFILL,left:c===3});
+      ws.getCell(gr,3).value=g.toUpperCase()+' ('+items.length+' mã)';
+      for(let c=6;c<=ncol;c++){const L=ws.getColumn(c).letter;ws.getCell(gr,c).value={formula:`SUM(${L}${first}:${L}${last})`};}
+      r++;
+      items.forEach(it=>{stt++;const row=ws.getRow(r);row.outlineLevel=1;
+        [stt,it.ma,it.ten,it.grp,it.dvt].forEach((v,k)=>cell(ws,r,k+1,v,{left:k===2||k===3,bold:k===1}));
+        it.vals.forEach((v,k)=>cell(ws,r,6+k,v));
+        if(fc)ws.getCell(r,fc.col).value={formula:`${ws.getColumn(fc.a).letter}${r}-${ws.getColumn(fc.b).letter}${r}`,result:(it.vals[fc.a-6]||0)-(it.vals[fc.b-6]||0)};
+        r++;});
+    });
+    ws.getCell(r,1).value='TỔNG SỐ MÃ THIẾT BỊ: '+rows.length;ws.mergeCells(r,1,r,5);
+    for(let c=1;c<=ncol;c++)cell(ws,r,c,undefined,{bold:true,fill:GOLD,left:c<=5});
+    ws.getCell(r,1).value='TỔNG SỐ MÃ THIẾT BỊ: '+rows.length;
+    for(let c=6;c<=ncol;c++){const L=ws.getColumn(c).letter;ws.getCell(r,c).value={formula:gRows.map(x=>L+x).join('+')};}
+    ws.properties.outlineProperties={summaryBelow:false,summaryRight:false};
+    return r;};
   const w0=wb.addWorksheet('Tong hop');
   const data=names.map(g=>({g,rows:agg(groups[g])}));
   const nR=CAT.length;
-  title(w0,'TỔNG HỢP VẬT TƯ THIẾT BỊ NTP-ĐTC ĐANG NHẬN · DỰ ÁN HH12 CỔ LOA (đang nhận = xuất − trả)',6+names.length+2);
+  const extraKeys=[];data.forEach(d=>d.rows.slice(nR).forEach(o=>{const k=o.ten+'|'+o.dvt;if(!extraKeys.includes(k))extraKeys.push(k);}));
+  title(w0,'TỔNG HỢP VẬT TƯ THIẾT BỊ NTP-ĐTC ĐANG NHẬN · DỰ ÁN HH12 CỔ LOA (đang nhận = xuất − trả)',5+names.length+3);
   w0.addRow([]);
   w0.addRow([...tblHdr,...names,'Tổng xuất','Tổng trả','NTP-ĐTC đang nhận']);hdr(w0,4);
-  const extraKeys=[];data.forEach(d=>d.rows.slice(nR).forEach(o=>{const k=o.ten+'|'+o.dvt;if(!extraKeys.includes(k))extraKeys.push(k);}));
-  const rowsAll=[...CAT.map(c=>({ma:c[0],ten:c[1],grp:GRP(c[0]),dvt:c[2],k:c[0]})),...extraKeys.map(k=>{const [ten,dvt]=k.split('|');return {ma:'',ten,grp:'Vật tư khác',dvt,k};})];
-  rowsAll.forEach((r,idx)=>{
-    const vals=data.map(d=>{const o=CAT.some(c=>c[0]===r.k)?d.rows[idx]:d.rows.slice(nR).find(x=>x.ten+'|'+x.dvt===r.k);return o||{x:0,t:0};});
-    const tx=vals.reduce((a,o)=>a+o.x,0),tt=vals.reduce((a,o)=>a+o.t,0);
-    const rn=5+idx;const row=w0.addRow([idx+1,r.ma,r.ten,r.grp,r.dvt,...vals.map(o=>o.x-o.t),tx,tt,null]);
-    const cx=6+names.length;row.getCell(cx+2).value={formula:`${w0.getColumn(cx).letter}${rn}-${w0.getColumn(cx+1).letter}${rn}`,result:tx-tt};
-  });
-  const lastR=4+rowsAll.length;
-  if(names.length||true){totalRow(w0,lastR+1,6+names.length+2,'TỔNG SỐ MÃ THIẾT BỊ: '+rowsAll.length,Array.from({length:names.length+3},(_,k)=>6+k),5,lastR);}
-  styleRows(w0,5,lastR,6+names.length+2);
   [6,12,26,22,8].forEach((w,i)=>w0.getColumn(i+1).width=w);for(let k=0;k<names.length;k++)w0.getColumn(6+k).width=14;[12,12,18].forEach((w,k)=>w0.getColumn(6+names.length+k).width=w);
-  w0.views=[{state:'frozen',xSplit:5,ySplit:4}];
-  w0.getRow(4).height=42;
-  // sheet từng nhà thầu, gom dòng theo 23 mã
-  const usedN=usedNames;
+  const rowsAll=[...CAT.map((c,idx)=>({ma:c[0],ten:c[1],grp:GRP(c[0]),dvt:c[2],idx})),...extraKeys.map(k=>{const [ten,dvt]=k.split('|');return {ma:'',ten,grp:'Vật tư khác',dvt,k};})]
+    .map(r=>{const os=data.map(d=>r.k?d.rows.slice(nR).find(x=>x.ten+'|'+x.dvt===r.k)||{x:0,t:0}:d.rows[r.idx]);
+      const tx=os.reduce((a,o)=>a+o.x,0),tt=os.reduce((a,o)=>a+o.t,0);return {...r,vals:[...os.map(o=>o.x-o.t),tx,tt,0]};});
+  writeAgg(w0,5,rowsAll,names.length+3,{col:5+names.length+3,a:6+names.length,b:7+names.length});
+  w0.views=[{state:'frozen',xSplit:5,ySplit:4}];w0.getRow(4).height=42;
+  // từng nhà thầu: bảng gom 23 mã + chi tiết theo phiếu (mỗi phiếu 1 nhóm)
+  const ord=i=>{const k=CAT.findIndex(x=>x[0]===codeOf(i));return k<0?99:k;};
+  const dkey=s=>String(s.head.ngay_xuat||s.head.ngay||'');
   names.forEach((g,gi)=>{
-    const ws=wb.addWorksheet(shName(g));const rows=data[gi].rows;
+    const ws=wb.addWorksheet(shName(g));[6,12,28,22,8,13,13,20].forEach((w,i)=>ws.getColumn(i+1).width=w);
     title(ws,'THỐNG KÊ XUẤT / TRẢ VẬT TƯ THIẾT BỊ · '+g.toUpperCase(),8);ws.addRow([]);
-    ws.addRow([...tblHdr,'Tổng xuất','Tổng trả','Đang nhận (xuất − trả)']);hdr(ws,4);
-    rows.forEach((o,idx)=>{const rn=5+idx;const row=ws.addRow([idx+1,o.ma,o.ten,o.grp,o.dvt,o.x,o.t,null]);row.getCell(8).value={formula:`F${rn}-G${rn}`,result:o.x-o.t};});
-    const lr=4+rows.length;totalRow(ws,lr+1,8,'TỔNG SỐ MÃ THIẾT BỊ: '+rows.length,[6,7,8],5,lr);styleRows(ws,5,lr,8);
-    [6,12,28,22,8,13,13,20].forEach((w,i)=>ws.getColumn(i+1).width=w);ws.getRow(4).height=34;ws.views=[{state:'frozen',ySplit:4}];
-    // chi tiết theo phiếu (gom theo mã, đúng trật tự 23 loại)
-    let r=lr+4;ws.getCell(r-1,1).value='CHI TIẾT THEO PHIẾU';ws.getCell(r-1,1).font={bold:true,name:'Times New Roman',color:{argb:NAVY}};
-    ['Ngày','Mã phiếu','Loại phiếu','Mã TB','Tên thiết bị','ĐVT','SL xuất','SL trả'].forEach((h,c)=>ws.getCell(r,c+1).value=h);
-    const hr=ws.getRow(r);hr.font={bold:true,color:{argb:'FFFFFFFF'},name:'Times New Roman'};hr.fill={type:'pattern',pattern:'solid',fgColor:{argb:'FF1F3864'}};hr.alignment={horizontal:'center',vertical:'middle',wrapText:true};
-    const ord=i=>{const c=codeOf(i);const k=CAT.findIndex(x=>x[0]===c);return k<0?99:k;};
-    const ss=groups[g].slice().sort((a,b)=>String(a.head.ngay_xuat||a.head.ngay||'').localeCompare(String(b.head.ngay_xuat||b.head.ngay||''))||a.code.localeCompare(b.code));
-    ss.forEach(s=>s.items.slice().sort((a,b)=>ord(a)-ord(b)).forEach(i=>{r++;const sl=num(i.sl);const vals=[fmtD(s.head.ngay_xuat||s.head.ngay),s.code,FORMS[s.type].name,codeOf(i)||i.ma||'',i.ten,i.dvt,s.type==='A'?sl:null,s.type==='T'?sl:null];vals.forEach((v,c)=>{const x=ws.getCell(r,c+1);x.value=v;x.border=BORD;x.font={name:'Times New Roman'};x.alignment={vertical:'middle',wrapText:true,horizontal:c>=4&&c<=4?'left':'center'};});}));
+    ws.addRow([...tblHdr,'Tổng xuất','Tổng trả','Đang nhận (xuất − trả)']);hdr(ws,4);ws.getRow(4).height=34;
+    const rr=data[gi].rows.map(o=>({ma:o.ma,ten:o.ten,grp:o.grp,dvt:o.dvt,vals:[o.x,o.t,0]}));
+    let r=writeAgg(ws,5,rr,3,{col:8,a:6,b:7})+3;
+    ws.getCell(r-1,1).value='CHI TIẾT THEO PHIẾU (bấm dấu +/- bên trái để mở/thu gọn từng phiếu)';ws.getCell(r-1,1).font={bold:true,name:'Times New Roman',color:{argb:NAVY}};
+    ['Ngày','Mã phiếu','Loại phiếu','Mã TB','Tên thiết bị','ĐVT','SL xuất','SL trả'].forEach((h,c)=>ws.getCell(r,c+1).value=h);hdr(ws,r);ws.getRow(r).height=24;
+    groups[g].slice().sort((a,b)=>dkey(a).localeCompare(dkey(b))||a.code.localeCompare(b.code)).forEach(s=>{
+      const sl=s.items.slice().sort((a,b)=>ord(a)-ord(b)).filter(i=>num(i.sl));r++;const hr=r,f=r+1,l=r+sl.length;
+      [fmtD(dkey(s)),s.code,FORMS[s.type].name,'',sl.length+' dòng thiết bị','',null,null].forEach((v,c)=>cell(ws,hr,c+1,v,{bold:true,fill:GFILL,left:c===4}));
+      ws.getCell(hr,7).value={formula:sl.length?`SUM(G${f}:G${l})`:'0'};ws.getCell(hr,8).value={formula:sl.length?`SUM(H${f}:H${l})`:'0'};
+      sl.forEach(i=>{r++;ws.getRow(r).outlineLevel=1;const v=num(i.sl);[fmtD(dkey(s)),s.code,FORMS[s.type].name,codeOf(i)||i.ma||'',i.ten,i.dvt,s.type==='A'?v:null,s.type==='T'?v:null].forEach((x,c)=>cell(ws,r,c+1,x,{left:c===4}));});
+    });
+    ws.views=[{state:'frozen',ySplit:4}];
   });
-  // sheet NCC (phiếu trả vật tư nhà cung cấp)
-  if(nccSs.length){const ws=wb.addWorksheet(shName('Tra NCC'));title(ws,'TRẢ VẬT TƯ THIẾT BỊ NHÀ CUNG CẤP (RA CỔNG) · HH12 CỔ LOA',8);ws.addRow([]);
-    ws.addRow(['Ngày','Mã phiếu','Nhà cung cấp','Mã TB','Tên thiết bị','ĐVT','SL trả NCC','Biển số xe']);hdr(ws,4);
-    const ord=i=>{const k=CAT.findIndex(x=>x[0]===codeOf(i));return k<0?99:k;};
-    nccSs.slice().sort((a,b)=>String(a.head.ngay||'').localeCompare(String(b.head.ngay||''))).forEach(s=>s.items.slice().sort((a,b)=>ord(a)-ord(b)).forEach(i=>ws.addRow([fmtD(s.head.ngay),s.code,s.head.don_vi||'',codeOf(i)||i.ma||'',i.ten,i.dvt,num(i.sl),s.head.bien_so||''])));
-    [12,20,26,12,36,8,13,14].forEach((w,i)=>ws.getColumn(i+1).width=w);box(ws,5);ws.views=[{state:'frozen',ySplit:4}];}
+  // sheet NCC (phiếu trả vật tư nhà cung cấp), gom theo phiếu
+  if(nccSs.length){const ws=wb.addWorksheet(shName('Tra NCC'));[12,20,26,12,36,8,13,14].forEach((w,i)=>ws.getColumn(i+1).width=w);
+    title(ws,'TRẢ VẬT TƯ THIẾT BỊ NHÀ CUNG CẤP (RA CỔNG) · HH12 CỔ LOA',8);ws.addRow([]);
+    ws.addRow(['Ngày','Mã phiếu','Nhà cung cấp','Mã TB','Tên thiết bị','ĐVT','SL trả NCC','Biển số xe']);hdr(ws,4);let r=4;
+    nccSs.slice().sort((a,b)=>String(a.head.don_vi||'').localeCompare(String(b.head.don_vi||''),'vi')||String(a.head.ngay||'').localeCompare(String(b.head.ngay||''))).forEach(s=>{
+      const sl=s.items.slice().sort((a,b)=>ord(a)-ord(b)).filter(i=>num(i.sl));r++;const hr=r,f=r+1,l=r+sl.length;
+      [fmtD(s.head.ngay),s.code,s.head.don_vi||'','',sl.length+' dòng thiết bị','',null,s.head.bien_so||''].forEach((v,c)=>cell(ws,hr,c+1,v,{bold:true,fill:GFILL,left:c===4||c===2}));
+      ws.getCell(hr,7).value={formula:sl.length?`SUM(G${f}:G${l})`:'0'};
+      sl.forEach(i=>{r++;ws.getRow(r).outlineLevel=1;[fmtD(s.head.ngay),s.code,s.head.don_vi||'',codeOf(i)||i.ma||'',i.ten,i.dvt,num(i.sl),s.head.bien_so||''].forEach((x,c)=>cell(ws,r,c+1,x,{left:c===4||c===2}));});});
+    ws.views=[{state:'frozen',ySplit:4}];}
   // 2. Danh sách phiếu (mọi trạng thái)
   const w1=wb.addWorksheet('Danh sach phieu');
   w1.addRow(['Mã phiếu','Loại phiếu','Ngày lập','Số phiếu','Hạng mục','Đội / Đơn vị','Trạng thái','Số dòng thiết bị','Người lập','Giám sát phụ trách','Lý do từ chối']);hdr(w1,1);
-  list.forEach(s=>{const sg=x=>x&&x.sig?`${x.name} (${fmtDT(x.at)})`:'';const gp=s.steps.find(x=>x.role==='gs_phu_trach');
+  list.slice().sort((a,b)=>(a.type==='N')-(b.type==='N')||who(a).localeCompare(who(b),'vi')||String(a.head.ngay||'').localeCompare(String(b.head.ngay||''))).forEach(s=>{const sg=x=>x&&x.sig?`${x.name} (${fmtDT(x.at)})`:'';const gp=s.steps.find(x=>x.role==='gs_phu_trach');
     w1.addRow([s.code,FORMS[s.type].name,fmtD(s.head.ngay),s.head.so||'',s.head.hang_muc||'',who(s),stt(s),s.items.length,sg(s.steps[0]),sg(gp),s.rejectReason||'']);});
   [20,30,12,12,18,24,22,12,28,28,28].forEach((w,i)=>w1.getColumn(i+1).width=w);box(w1,2);w1.views=[{state:'frozen',ySplit:1}];
   const buf=await wb.xlsx.writeBuffer();
@@ -609,6 +634,7 @@ function renderSlip(s){
       :`<p class="hint">Phiếu đang chờ <b>${esc(cur(s).label)}</b> ký${ME.member?'. Chưa đến lượt vai trò của bạn.':'. Tài khoản của bạn chưa được cấp quyền ký.'}</p>`;}
   if(s.status==='rejected')act+=`<div class="msg err"><b>Phiếu bị từ chối</b>${s.rejectedBy?' bởi '+esc(s.rejectedBy):''}: ${esc(s.rejectReason||'không có lý do')}</div>`;
   if(s.status==='done')act+=`<div class="row"><button class="btn red" id="aPdf">Xuất PDF (gửi Zalo cho giám sát in)</button><button class="btn blue" id="aXls">Xuất Excel phiếu</button></div>`;
+  if(ME.isAdmin)act+=`<div class="row"><button class="btn line sm" id="aDel" style="color:var(--bad);border-color:var(--bad)">Xoá phiếu này</button></div>`;
   app.innerHTML=`<a href="#/" class="hint">← Trang chủ</a>
    <div class="row" style="justify-content:space-between;margin-top:6px"><div><div class="eyebrow">${esc(F.name)}</div><h2 style="margin:2px 0 0;font-size:24px;color:var(--navy)">${esc(s.code)}</h2><span class="hint">${esc(who(s))} · lập lúc ${esc(fmtDT(s.createdAt))}</span></div>${badge(s)}</div>
    <section class="panel"><h2>Tiến trình ký</h2><ol class="tl">${tl}</ol>${act}
@@ -618,6 +644,7 @@ function renderSlip(s){
   $('aCopy').onclick=async()=>{try{await navigator.clipboard.writeText(slipLink(s.id));toast('Đã sao chép link phiếu');}catch(e){prompt('Sao chép link:',slipLink(s.id));}};
   $('aShare').onclick=()=>{const u=slipLink(s.id);if(navigator.share)navigator.share({title:'Phiếu '+s.code,text:'Phiếu '+s.code+(s.status==='done'?' đã ký xong, mở link để in':' cần ký'),url:u}).catch(()=>{});else $('aCopy').click();};
   if($('aIn'))$('aIn').onclick=login;if($('aPdf'))$('aPdf').onclick=()=>exportPdf(s);if($('aXls'))$('aXls').onclick=()=>exportXlsx([s],{name:'Excel_'+s.code});
+  if($('aDel'))$('aDel').onclick=()=>delSlip(s);
   if($('aSign'))$('aSign').onclick=()=>doSign(s);if($('aRej'))$('aRej').onclick=()=>doReject(s);
 }
 async function doSign(s){
@@ -643,6 +670,11 @@ async function doSign(s){
     await DB.updateSlip(s.id,{steps,currentStep:finished?steps.length:nextManual,status:finished?'done':'pending'});
     toast(finished?(missing.length?'Đã ký xong. Chưa có chữ ký mẫu của '+missing.join(', ')+' nên để trống (tải lên ở Quản trị).':'Đã ký xong, phiếu hoàn tất. Xuất PDF gửi Zalo cho giám sát in.'):'Đã ký, chuyển cấp tiếp theo.');
   }catch(e){toast('Không ký được: '+(e.code||e.message));}
+}
+async function delSlip(s,after){
+  const r=await modal(`<h3>Xoá phiếu ${esc(s.code)}?</h3><p class="hint" style="color:var(--ink)">${esc(FORMS[s.type].name)} · ${esc(who(s))} · ${s.items.length} dòng. Xoá xong không khôi phục được, số liệu thống kê và file Excel sẽ tự cập nhật theo.</p><div class="row"><button class="btn red" data-m="yes">Xoá phiếu</button><button class="btn" data-m="no">Huỷ</button></div>`);
+  if(r!=='yes')return;
+  try{await DB.deleteSlip(s.id);toast('Đã xoá phiếu '+s.code);if(after)after();else location.hash='#/tatca';}catch(e){toast('Không xoá được: '+(e.code||e.message));}
 }
 async function doReject(s){
   let val='';
@@ -672,14 +704,22 @@ async function viewQueue(){
 async function viewAll(){
   if(!U)return needLogin('Đăng nhập Google để xem toàn bộ phiếu.');
   if(!ME.member)return needMember();
-  const all=await loadSlips();if(!all)return;
+  let all=await loadSlips();if(!all)return;
   let fs='',fq='';
-  const draw=()=>{const l=all.filter(s=>(!fs||s.status===fs)&&(!fq||(s.code+' '+who(s)+' '+(s.head.hang_muc||'')+' '+(s.head.so||'')).toLowerCase().includes(fq.toLowerCase())));
-    $('rows').innerHTML=l.map(s=>`<tr><td><a href="#/phieu/${s.id}">${esc(s.code)}</a></td><td>${esc(FORMS[s.type].name)}</td><td>${esc(who(s))}</td><td>${esc(fmtD(s.head.ngay))}</td><td>${s.items.length}</td><td>${badge(s)}</td></tr>`).join('')||'<tr><td colspan="6" class="hint">Không có phiếu.</td></tr>';
-    $('cnt').textContent=l.length+' phiếu';$('bx').onclick=()=>exportXlsx(l);};
-  app.innerHTML=`<div class="eyebrow">Toàn bộ phiếu</div><h2 style="margin:4px 0 12px;font-size:26px;color:var(--navy)">Tất cả phiếu</h2>
+  const dk=s=>String(s.head.ngay_xuat||s.head.ngay||'');
+  const gname=s=>s.type==='N'?'NCC · '+(who(s)||'Chưa rõ'):(who(s)||'Chưa rõ');
+  const draw=()=>{
+    const l=all.filter(s=>(!fs||s.status===fs)&&(!fq||(s.code+' '+who(s)+' '+(s.head.hang_muc||'')+' '+(s.head.so||'')).toLowerCase().includes(fq.toLowerCase())));
+    const G={};l.forEach(s=>{(G[gname(s)]=G[gname(s)]||[]).push(s);});
+    const names=Object.keys(G).sort((a,b)=>(a.startsWith('NCC')-b.startsWith('NCC'))||a.localeCompare(b,'vi'));
+    const cols=ME.isAdmin?7:6;
+    $('rows').innerHTML=names.map(g=>{const ss=G[g].sort((a,b)=>dk(a).localeCompare(dk(b))||String(a.createdAt).localeCompare(String(b.createdAt)));
+      return `<tr class="grp"><td colspan="${cols}"><b>${esc(g)}</b> <span class="hint">· ${ss.length} phiếu</span></td></tr>`+ss.map(s=>`<tr><td><a href="#/phieu/${s.id}">${esc(s.code)}</a></td><td>${esc(FORMS[s.type].name)}</td><td>${esc(fmtD(dk(s)))}</td><td>${s.items.length}</td><td>${badge(s)}</td>${ME.isAdmin?`<td><button class="btn line sm" data-del="${s.id}" style="color:var(--bad);border-color:var(--bad)">Xoá</button></td>`:''}<td class="hint">${esc(s.head.hang_muc||'')}</td></tr>`).join('');}).join('')||`<tr><td colspan="${cols}" class="hint">Không có phiếu.</td></tr>`;
+    $('cnt').textContent=l.length+' phiếu';$('bx').onclick=()=>exportXlsx(all);
+    document.querySelectorAll('[data-del]').forEach(b=>b.onclick=()=>{const s=all.find(x=>x.id===b.dataset.del);delSlip(s,()=>{all=all.filter(x=>x.id!==s.id);draw();});});};
+  app.innerHTML=`<div class="eyebrow">Toàn bộ phiếu · xếp theo nhà thầu, phiếu mới nhất ở cuối</div><h2 style="margin:4px 0 12px;font-size:26px;color:var(--navy)">Tất cả phiếu</h2>
    <div class="row"><input id="fq" placeholder="Tìm mã phiếu, đội, hạng mục" style="max-width:280px" aria-label="Tìm phiếu"><select id="fs" style="max-width:190px" aria-label="Lọc trạng thái"><option value="">Mọi trạng thái</option><option value="pending">Đang chờ ký</option><option value="done">Đã hoàn tất</option><option value="rejected">Bị từ chối</option></select><span id="cnt" class="hint"></span><button class="btn blue sm" id="bx" style="margin-left:auto">Xuất Excel thống kê theo nhà thầu</button></div>
-   <div class="panel scroll" style="margin-top:12px"><table class="t"><thead><tr><th>Mã phiếu</th><th>Loại</th><th>Đội / Đơn vị</th><th>Ngày</th><th>Dòng</th><th>Trạng thái</th></tr></thead><tbody id="rows"></tbody></table></div>`;
+   <div class="panel scroll" style="margin-top:12px"><table class="t"><thead><tr><th>Mã phiếu</th><th>Loại</th><th>Ngày</th><th>Dòng</th><th>Trạng thái</th>${ME.isAdmin?'<th></th>':''}<th>Hạng mục</th></tr></thead><tbody id="rows"></tbody></table></div>`;
   $('fq').oninput=e=>{fq=e.target.value;draw();};$('fs').onchange=e=>{fs=e.target.value;draw();};draw();
 }
 
