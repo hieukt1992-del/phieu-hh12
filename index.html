@@ -192,7 +192,7 @@ const closeModal=()=>{$('modal').innerHTML='';};
 const CAT=[["RL-25","Ringlock 2.5m","cây"],["RL-15","Ringlock 1.5m","cây"],["RL-10","Ringlock 1.0m","cây"],["GN-12","Giằng ngang 1.2m","cây"],["GN-06","Giằng ngang 0.6m","cây"],["GX-1215","Giằng chéo 1.2x1.5m","cây"],["GX-0615","Giằng chéo 0.6x1.5m","cây"],["KD-38","Kích đế d38x600","Cái"],["KU-38","Kích U d38x600","Cái"],["KU-CS","Kích U console","Cái"],["KU-KD","Kích U kẹp đôi","Cái"],["TH100-4","Thép hộp 50x100x4m","Cái"],["TH100-3","Thép hộp 50x100x3m","Cái"],["TH100-2","Thép hộp 50x100x2m","Cái"],["TH50-6","Thép hộp 50x50x6m","m"],["TH50-4","Thép hộp 50x50x4m","m"],["TH50-3","Thép hộp 50x50x3m","m"],["TH50-2","Thép hộp 50x50x2m","m"],["PK-TG","Tuýp gông hệ chống","m"],["PK-CU","Cùm","cái"],["PK-GO","Gông","cái"],["PK-TY","Ty","m"],["PK-OB","Óc bát","con"]];
 const LISTS={DOI:['An Phát','BCH','Đỗ Đình Tán','ĐTC Khoa','ĐTC Liên Copha','ĐTC Trường','ĐTC Xây Lắp Copha','Đức Hiểu','Gia Phạm','Hải Đăng','Hòa Thùy','Hoàng Văn Tiến','Lê Văn Thuật','Minh Sơn','NTP Bảo Hưng','NTP Gia Phong','NTP Neo','NTP Quang Thái','NTP Trung Hải','Nguyễn Đức Kiên','Tổ Thép Lương','Tuấn Anh','UTCONTS'],HM:['Tháp khách sạn','Tháp văn phòng','Khối podium']};
 const HEADA=[['ngay','Ngày lập phiếu','date'],['so','Số phiếu','text'],['hang_muc','Hạng mục','HM'],['doi','Đội thi công (nhà thầu phụ)','DOI'],['ngay_dn','Ngày đề nghị','date']];
-const CHAINA=k=>[['nguoi_de_nghi','Người đề nghị'],['thu_kho','Thủ kho','auto'],['gs_tctc','GS. TCTC','auto'],['gs_phu_trach','GS. Phụ trách'],['cht','Chỉ Huy Trưởng','auto']];
+const CHAINA=k=>[['nguoi_de_nghi','Người đề nghị'],['thu_kho','Thủ kho','skip'],['gs_tctc','GS. TCTC','skip'],['gs_phu_trach','GS. Phụ trách'],['cht','Chỉ Huy Trưởng','auto']];
 const FORMS={
  A:{code:'PX',file:'Phieu-xuat-kho',name:'Phiếu xuất kho',sub:'Đề nghị cung cấp vật tư kiêm phiếu xuất kho',title:'PHIẾU ĐỀ NGHỊ CUNG CẤP VẬT TƯ<br>KIÊM PHIẾU XUẤT KHO',dl:'Ngày xuất',per:13,layout:'A',
   head:[...HEADA,['ngay_xuat','Ngày xuất','date']],req:['ngay_dn','ngay_xuat'],chain:CHAINA()},
@@ -357,7 +357,7 @@ const isMyTurn=s=>ME.member&&s.status==='pending'&&cur(s)&&ME.roles.includes(cur
 
 function renderChrome(){
   const r=(location.hash.replace(/^#\/?/,'').split('/')[0])||'';
-  const items=[['','Trang chủ'],['tao','Phiếu xuất / trả kho']];
+  const items=[['','Trang chủ'],['tao','Phiếu xuất / trả kho']];if(ME.member||ME.isAdmin)items.push(['thong-ke','Thống kê thiết bị']);
   if(canNcc())items.push(['ncc','Trả vật tư NCC']);
   if(ME.member||ME.isAdmin){items.push(['duyet','Chờ tôi ký'],['tatca','Tất cả phiếu'],['ho-so','Chữ ký của tôi']);}
   if(ME.isAdmin)items.push(['quan-tri','Quản trị']);
@@ -386,7 +386,7 @@ const needMember=()=>{app.innerHTML=`<div class="panel"><h2>Tài khoản chưa �
 /* ===================== Trang chủ ===================== */
 function viewHome(){
   const mine=mySlips();
-  const chain=k=>`<div class="chain">${FORMS[k].chain.map(([,l,m],i)=>`${i?'<i>→</i>':''}<span class="${i?(m==='auto'?'a':m==='skip'?'a':''):'g'}">${esc(l)}${m==='auto'?' (chữ ký mẫu)':m==='skip'?' (ký tại cổng)':''}</span>`).join('')}</div>`;
+  const chain=k=>`<div class="chain">${FORMS[k].chain.map(([,l,m],i)=>`${i?'<i>→</i>':''}<span class="${i?(m==='auto'?'a':m==='skip'?'a':''):'g'}">${esc(l)}${m==='auto'?' (chữ ký mẫu)':m==='skip'?(l.startsWith('An ninh')?' (ký tại cổng)':' (không cần ký)'):''}</span>`).join('')}</div>`;
   app.innerHTML=`<section class="hero"><div class="avatar" aria-hidden="true">HH12</div>
    <span class="tag">Phiếu điện tử dự án HH12 Cổ Loa</span>
    <h1>Lập phiếu và ký online</h1>
@@ -394,7 +394,7 @@ function viewHome(){
    <div class="stats"><div><b>3</b><span>Loại phiếu</span></div><div><b>2</b><span>Trang phiếu</span></div><div><b>23</b><span>Mã thiết bị</span></div><div><b>0</b><span>Giấy chạy tay</span></div></div>
    <div class="cta"><a class="btn red" href="#/tao">Tạo phiếu xuất / trả kho →</a>${canNcc()?'<a class="btn line" href="#/ncc">Trả vật tư NCC</a>':'<a class="btn line" href="#/duyet">Phiếu chờ tôi ký</a>'}</div></section>
    ${mine.length?`<section class="sec"><div class="eyebrow">Phiếu bạn đã tạo trên máy này</div><h2>Theo dõi phiếu</h2><div class="grid3">${mine.slice(0,6).map(m=>`<a class="slipcard" href="#/phieu/${m.id}"><span><b>${esc(m.code)}</b><br><small>${esc(m.doi||'')} · ${esc(fmtDT(m.at))}</small></span><span class="btn sm line">Mở</span></a>`).join('')}</div></section>`:''}
-   <section class="sec"><div class="eyebrow">Trang 1 · Nhà thầu phụ NTP-ĐTC</div><h2>Cấp / trả vật tư thiết bị</h2><p>Đội thi công tự lập phiếu không cần tài khoản. Chỉ Giám sát phụ trách ký online, các cấp còn lại đã chèn sẵn chữ ký mẫu.</p>
+   <section class="sec"><div class="eyebrow">Trang 1 · Nhà thầu phụ NTP-ĐTC</div><h2>Cấp / trả vật tư thiết bị</h2><p>Đội thi công tự lập phiếu không cần tài khoản. Người đề nghị ký, sau đó chỉ Giám sát phụ trách ký online. Thủ kho, GS TCTC không cần ký; CHT chèn sẵn chữ ký mẫu.</p>
    <div class="panel"><h2>${FORMS.A.name}</h2>${chain('A')}<h2 style="margin-top:6px">${FORMS.T.name}</h2>${chain('T')}<div class="row"><a class="btn red sm" href="#/tao">Tạo phiếu</a></div></div></section>
    <section class="sec"><div class="eyebrow">Trang 2 · Nhà cung cấp (NCC)</div><h2>Trả vật tư thiết bị NCC, đề nghị ra cổng</h2><p>Chỉ quản trị và thủ kho được cấp quyền mới truy cập. Thủ kho lập, Giám sát phụ trách duyệt, sau đó chèn chữ ký mẫu.</p>
    <div class="panel"><h2>Phiếu đề nghị ra cổng</h2>${chain('N')}${canNcc()?'<div class="row"><a class="btn blue sm" href="#/ncc">Lập phiếu NCC</a></div>':'<p class="hint">Đăng nhập bằng tài khoản được cấp quyền để lập phiếu.</p>'}</div></section>
@@ -573,7 +573,7 @@ function renderSlip(s){
   if(!s){app.innerHTML='<div class="panel"><h2>Không tìm thấy phiếu</h2><p class="hint">Link phiếu sai hoặc phiếu đã bị xoá.</p><a class="btn blue" href="#/">Về trang chủ</a></div>';return;}
   const F=FORMS[s.type],turn=isMyTurn(s);
   const tl=s.steps.map((x,i)=>{const done=!!x.sig,isCur=s.status==='pending'&&i===s.currentStep,rej=s.status==='rejected'&&i===s.currentStep;
-    const idle=x.mode==='auto'?'Chèn chữ ký mẫu khi duyệt xong':x.mode==='skip'?'Ký xác nhận tại cổng (bản giấy)':'Chưa đến lượt';
+    const idle=x.mode==='auto'?'Chèn chữ ký mẫu khi duyệt xong':x.mode==='skip'?(x.role==='an_ninh'?'Ký xác nhận tại cổng (bản giấy)':'Không cần ký (để trống)'):'Chưa đến lượt';
     return `<li class="${done?'done':rej?'rej':isCur?'cur':''}"><span class="d">${done?'✓':rej?'✕':i+1}</span><div><b>${esc(x.label)}</b><small>${done?esc(x.name)+' · '+esc(fmtDT(x.at))+(x.mode==='auto'?' · chữ ký mẫu':''):rej?'Từ chối':isCur?'Đang chờ ký':idle}</small>${done?`<img src="${x.sig}" alt="Chữ ký ${esc(x.name)}">`:''}</div></li>`;}).join('');
   let act='';
   if(turn){act=`<div class="row"><button class="btn red" id="aSign">Ký duyệt</button><button class="btn line" id="aRej">Từ chối</button></div><p class="hint">Đến lượt bạn ký với vai trò <b>${esc(cur(s).label)}</b>.</p>`;}
@@ -603,17 +603,18 @@ async function doSign(s){
   try{
     const now=new Date().toISOString();
     let steps=s.steps.map((x,i)=>i===s.currentStep?{...x,name:ME.name,email:U.email,sig,at:now}:x);
+    const missing=[];
     const pendingManual=steps.some((x,i)=>i>0&&!x.sig&&!x.mode);
     if(!pendingManual){
       const need=steps.map((x,i)=>x.mode==='auto'&&!x.sig?i:-1).filter(i=>i>=0);
       for(const i of need){const st=await DB.getStamp(steps[i].role);
-        if(!st||!st.sig){toast('Chưa có chữ ký mẫu của "'+steps[i].label+'". Vào Quản trị để tải lên rồi ký lại.');return;}
+        if(!st||!st.sig){missing.push(steps[i].label);continue;}
         steps[i]={...steps[i],name:st.name||'',sig:st.sig,at:now};}
     }
     const nextManual=steps.findIndex((x,i)=>i>0&&!x.sig&&!x.mode);
     const finished=nextManual<0;
     await DB.updateSlip(s.id,{steps,currentStep:finished?steps.length:nextManual,status:finished?'done':'pending'});
-    toast(finished?'Đã ký xong, phiếu hoàn tất. Xuất PDF gửi Zalo cho giám sát in.':'Đã ký, chuyển cấp tiếp theo.');
+    toast(finished?(missing.length?'Đã ký xong. Chưa có chữ ký mẫu của '+missing.join(', ')+' nên để trống (tải lên ở Quản trị).':'Đã ký xong, phiếu hoàn tất. Xuất PDF gửi Zalo cho giám sát in.'):'Đã ký, chuyển cấp tiếp theo.');
   }catch(e){toast('Không ký được: '+(e.code||e.message));}
 }
 async function doReject(s){
@@ -722,6 +723,44 @@ async function viewAdmin(){
   });
 }
 
+
+/* ===================== Thống kê thiết bị theo nhà thầu ===================== */
+async function viewStats(){
+  if(!U)return needLogin('Đăng nhập Google để xem thống kê thiết bị.');
+  if(!ME.member)return needMember();
+  const all=await loadSlips();if(!all)return;
+  const num=v=>{const n=parseFloat(String(v).replace(',','.'));return isNaN(n)?0:n;};
+  const fmtN=n=>Number.isInteger(n)?String(n):String(Math.round(n*100)/100);
+  let incl=false,q='',open=null,d1='',d2='';
+  const calc=()=>{
+    const G={};
+    all.filter(s=>s.type!=='N'&&(incl?s.status!=='rejected':s.status==='done')).forEach(s=>{
+      const dt=s.head.ngay_xuat||s.head.ngay||'';if((d1&&dt<d1)||(d2&&dt>d2))return;
+      const g=who(s)||'Chưa rõ';const o=G[g]=G[g]||{name:g,x:0,t:0,items:{},slips:[]};o.slips.push(s);
+      s.items.forEach(i=>{const sl=num(i.sl);if(!sl)return;const k=(i.ma||'')+'|'+i.ten+'|'+i.dvt;const it=o.items[k]=o.items[k]||{ma:i.ma||'',ten:i.ten,dvt:i.dvt,x:0,t:0};
+        if(s.type==='A'){it.x+=sl;o.x+=sl;}else{it.t+=sl;o.t+=sl;}});
+    });
+    return Object.values(G).sort((a,b)=>a.name.localeCompare(b.name,'vi'));
+  };
+  const draw=()=>{
+    const gs=calc().filter(g=>!q||g.name.toLowerCase().includes(q.toLowerCase()));
+    const tx=gs.reduce((a,g)=>a+g.x,0),tt=gs.reduce((a,g)=>a+g.t,0);
+    $('stsum').innerHTML=`<div><b>${gs.length}</b><span>Nhà thầu</span></div><div><b>${fmtN(tx)}</b><span>Tổng xuất</span></div><div><b>${fmtN(tt)}</b><span>Tổng trả</span></div><div><b>${fmtN(tx-tt)}</b><span>Còn tại đội</span></div>`;
+    $('stlist').innerHTML=gs.map(g=>{const on=open===g.name;const rows=Object.values(g.items).sort((a,b)=>a.ten.localeCompare(b.ten,'vi'));
+      return `<div class="panel" style="padding:0"><button class="stbtn" data-g="${esc(g.name)}" aria-expanded="${on}" style="all:unset;box-sizing:border-box;display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between;width:100%;padding:14px 16px;cursor:pointer"><b style="font-size:17px;color:var(--navy)">${esc(g.name)}</b><span><span class="badge b-done">Xuất ${fmtN(g.x)}</span> <span class="badge b-pending">Trả ${fmtN(g.t)}</span> <span class="badge ${g.x-g.t>0?'b-rejected':'b-done'}">Còn ${fmtN(g.x-g.t)}</span></span></button>
+      ${on?`<div class="scroll" style="padding:0 16px 14px"><table class="t"><thead><tr><th>Mã</th><th>Thiết bị</th><th>ĐVT</th><th>Xuất</th><th>Trả</th><th>Còn tại đội</th></tr></thead><tbody>${rows.map(r=>`<tr><td>${esc(r.ma)}</td><td>${esc(r.ten)}</td><td>${esc(r.dvt)}</td><td>${fmtN(r.x)}</td><td>${fmtN(r.t)}</td><td><b>${fmtN(r.x-r.t)}</b></td></tr>`).join('')}</tbody></table><p class="hint">${g.slips.length} phiếu: ${g.slips.map(s=>`<a href="#/phieu/${s.id}">${esc(s.code)}</a>`).join(', ')}</p></div>`:''}</div>`;}).join('')||'<p class="hint">Chưa có phiếu nào đã ký xong.</p>';
+    document.querySelectorAll('.stbtn').forEach(b=>b.onclick=()=>{open=open===b.dataset.g?null:b.dataset.g;draw();});
+    $('stx').onclick=()=>exportXlsx(all.filter(s=>(incl?s.status!=='rejected':s.status==='done')));
+  };
+  app.innerHTML=`<div class="eyebrow">Theo dõi xuất / trả theo nhà thầu</div><h2 style="margin:4px 0 12px;font-size:26px;color:var(--navy)">Thống kê thiết bị</h2>
+   <div class="row"><input id="stq" placeholder="Tìm nhà thầu" style="max-width:220px" aria-label="Tìm nhà thầu"><label class="hint">Từ <input type="date" id="std1" style="width:auto"></label><label class="hint">Đến <input type="date" id="std2" style="width:auto"></label>
+   <label class="row" style="gap:6px"><input type="checkbox" id="stin" style="width:18px;height:18px;min-height:0"> Gồm phiếu chưa ký xong</label><button class="btn blue sm" id="stx" style="margin-left:auto">Xuất Excel theo nhà thầu</button></div>
+   <div class="stats" id="stsum" style="margin:12px 0"></div><div id="stlist" style="display:flex;flex-direction:column;gap:10px"></div>
+   <p class="hint">Xuất = phiếu xuất kho, Trả = phiếu trả kho (không tính phiếu NCC). Còn tại đội = xuất trừ trả, cộng theo từng thiết bị. Bấm vào tên nhà thầu để xem chi tiết.</p>`;
+  $('stq').oninput=e=>{q=e.target.value;draw();};$('std1').onchange=e=>{d1=e.target.value;draw();};$('std2').onchange=e=>{d2=e.target.value;draw();};$('stin').onchange=e=>{incl=e.target.checked;draw();};
+  draw();
+}
+
 /* ===================== Định tuyến ===================== */
 function route(){
   if(unwatch){try{unwatch();}catch(e){}unwatch=null;}
@@ -734,6 +773,7 @@ function route(){
   if(p==='phieu'&&parts[1])return viewSlip(parts[1]);
   if(p==='duyet')return viewQueue();
   if(p==='tatca')return viewAll();
+  if(p==='thong-ke')return viewStats();
   if(p==='ho-so')return viewProfile();
   if(p==='quan-tri')return viewAdmin();
   viewHome();
