@@ -240,7 +240,7 @@ const closeModal=()=>{$('modal').innerHTML='';};
 const CAT=[["RL-25","Ringlock 2.5m","cây"],["RL-15","Ringlock 1.5m","cây"],["RL-10","Ringlock 1.0m","cây"],["GN-12","Giằng ngang 1.2m","cây"],["GN-06","Giằng ngang 0.6m","cây"],["GX-1215","Giằng chéo 1.2x1.5m","cây"],["GX-0615","Giằng chéo 0.6x1.5m","cây"],["KD-38","Kích đế d38x600","Cái"],["KU-38","Kích U d38x600","Cái"],["KU-CS","Kích U console","Cái"],["KU-KD","Kích U kẹp đôi","Cái"],["TH100-4","Thép hộp 50x100x4m","Cái"],["TH100-3","Thép hộp 50x100x3m","Cái"],["TH100-2","Thép hộp 50x100x2m","Cái"],["TH50-6","Thép hộp 50x50x6m","m"],["TH50-4","Thép hộp 50x50x4m","m"],["TH50-3","Thép hộp 50x50x3m","m"],["TH50-2","Thép hộp 50x50x2m","m"],["PK-TG","Tuýp gông hệ chống","m"],["PK-CU","Cùm","cái"],["PK-GO","Gông","cái"],["PK-TY","Ty","m"],["PK-OB","Óc bát","con"]];
 const LISTS={DOI:['An Phát','BCH','Đỗ Đình Tán','ĐTC Khoa','ĐTC Liên Copha','ĐTC Trường','ĐTC Xây Lắp Copha','Đức Hiểu','Gia Phạm','Hải Đăng','Hòa Thùy','Hoàng Văn Tiến','Lê Văn Thuật','Minh Sơn','NTP Bảo Hưng','NTP Gia Phong','NTP Neo','NTP Quang Thái','NTP Trung Hải','Nguyễn Đức Kiên','Tổ Thép Lương','Tuấn Anh','UTCONTS'],HM:['Tháp khách sạn','Tháp văn phòng','Khối podium']};
 const HEADA=[['ngay','Ngày lập phiếu','date'],['so','Số phiếu','text'],['hang_muc','Hạng mục','HM'],['doi','Đội thi công (nhà thầu phụ)','DOI'],['ngay_dn','Ngày đề nghị','date'],['sdt','Số điện thoại Zalo của người đề nghị','tel']];
-const CHAINA=k=>[['nguoi_de_nghi','Người đề nghị'],['gs_tctc','GS. TCTC','skip'],['gs_phu_trach','GS. Phụ trách']];
+const CHAINA=k=>[['nguoi_de_nghi','Người đề nghị'],['thu_kho','Thủ kho','skip'],['gs_tctc','GS. TCTC','skip'],['gs_phu_trach','GS. Phụ trách'],['cht','Chỉ Huy Trưởng','skip']];
 const FORMS={
  A:{code:'PX',file:'Phieu-xuat-kho',name:'Phiếu xuất kho',sub:'Đề nghị cung cấp vật tư kiêm phiếu xuất kho',title:'PHIẾU ĐỀ NGHỊ CUNG CẤP VẬT TƯ<br>KIÊM PHIẾU XUẤT KHO',dl:'Ngày xuất',per:13,layout:'A',
   head:[...HEADA,['ngay_xuat','Ngày xuất','date']],req:['ngay_dn','ngay_xuat','sdt'],chain:CHAINA()},
@@ -272,7 +272,7 @@ function headerBlock(F,h,code){
 }
 const sigHead=(steps,x)=>`<div class="sig" style="grid-template-columns:repeat(${steps.length},1fr);${x||''}">${steps.map(s=>`<div>${esc(s.label)}</div>`).join('')}</div>`;
 const sigCells=(steps,blank)=>steps.map(s=>s&&s.sig?`<div><img class="sg" src="${s.sig}" alt=""><span class="sn">${esc(s.name||'')}</span><span class="st">${esc(fmtDT(s.at))}</span></div>`:`<div>${blank||''}</div>`).join('');
-const vfMark=(slip)=>{if(!slip)return '';if(slip.status==='done'){const sg=slip.steps.filter(x=>x.sig),last=sg[sg.length-1];return `<div class="vf">Phiếu điện tử ${esc(slip.code||'')} · đã ký điện tử ${sg.length}/${slip.steps.length} cấp · ${esc(fmtDT(last&&last.at))}</div>`;}return slip.status==='rejected'?`<div class="vf" style="color:#b3261e">PHIẾU BỊ TỪ CHỐI, KHÔNG CÓ GIÁ TRỊ</div>`:'';};
+const vfMark=(slip)=>{if(!slip)return '';if(slip.status==='done'){const sg=slip.steps.filter(x=>x.sig),last=sg[sg.length-1];const tot=slip.steps.filter(x=>x.mode!=='skip'||x.role==='an_ninh').length;return `<div class="vf">Phiếu điện tử ${esc(slip.code||'')} · đã ký điện tử ${sg.length}/${tot} cấp · ${esc(fmtDT(last&&last.at))}</div>`;}return slip.status==='rejected'?`<div class="vf" style="color:#b3261e">PHIẾU BỊ TỪ CHỐI, KHÔNG CÓ GIÁ TRỊ</div>`:'';};
 function sheetA(h,rows,pg,tot,steps,slip,kind){
   const F=FORMS[kind||'A'];let tr='';
   for(let i=0;i<F.per;i++){const r=rows[i]||{};const has=filled(r);
@@ -706,9 +706,9 @@ function viewSlip(id){
 function renderSlip(s){
   if(!s){app.innerHTML='<div class="panel"><h2>Không tìm thấy phiếu</h2><p class="hint">Link phiếu sai hoặc phiếu đã bị xoá.</p><a class="btn blue" href="#/">Về trang chủ</a></div>';return;}
   const F=FORMS[s.type],turn=isMyTurn(s);
-  const tl=s.steps.map((x,i)=>{const done=!!x.sig,isCur=s.status==='pending'&&i===s.currentStep,rej=s.status==='rejected'&&i===s.currentStep;
+  let __n=0;const tl=s.steps.map((x,i)=>{if(x.mode==='skip'&&x.role!=='an_ninh')return '';__n++;const done=!!x.sig,isCur=s.status==='pending'&&i===s.currentStep,rej=s.status==='rejected'&&i===s.currentStep;
     const idle=x.mode==='auto'?'Chèn chữ ký mẫu khi duyệt xong':x.mode==='skip'?(x.role==='an_ninh'?'Ký xác nhận tại cổng (bản giấy)':'Không cần ký (để trống)'):'Chưa đến lượt';
-    return `<li class="${done?'done':rej?'rej':isCur?'cur':''}"><span class="d">${done?'✓':rej?'✕':i+1}</span><div><b>${esc(x.label)}</b><small>${done?esc(x.name)+' · '+esc(fmtDT(x.at))+(x.mode==='auto'?' · chữ ký mẫu':''):rej?'Từ chối':isCur?'Đang chờ ký':idle}</small>${done?`<img src="${x.sig}" alt="Chữ ký ${esc(x.name)}">`:''}</div></li>`;}).join('');
+    return `<li class="${done?'done':rej?'rej':isCur?'cur':''}"><span class="d">${done?'✓':rej?'✕':__n}</span><div><b>${esc(x.label)}</b><small>${done?esc(x.name)+' · '+esc(fmtDT(x.at))+(x.mode==='auto'?' · chữ ký mẫu':''):rej?'Từ chối':isCur?'Đang chờ ký':idle}</small>${done?`<img src="${x.sig}" alt="Chữ ký ${esc(x.name)}">`:''}</div></li>`;}).join('');
   let act='';
   if(turn){act=`<div class="row"><button class="btn red" id="aSign">Ký duyệt</button><button class="btn line" id="aRej">Từ chối</button></div><p class="hint">Đến lượt bạn ký với vai trò <b>${esc(cur(s).label)}</b>.</p>`;}
   else if(s.status==='pending'){
