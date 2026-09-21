@@ -97,7 +97,7 @@ h3.g{margin:6px 0 0;font-size:13px;color:var(--muted);font-weight:700;letter-spa
 .item .u{color:var(--muted);font-size:12.5px;flex:none}
 .item .qty{width:84px;flex:none;text-align:right;min-height:40px;font-weight:700}
 .list{display:grid;grid-template-columns:repeat(auto-fill,minmax(360px,1fr));gap:8px}
-@media (max-width:480px){.list{grid-template-columns:1fr}.item .pick{gap:8px;padding-left:10px}.item .code{min-width:0;font-size:12px}.item .nm{font-size:14px}.item .qty{width:66px}.item .u{font-size:11.5px}.hero h1{font-size:27px}.nav{justify-content:flex-start}.who{width:100%;margin:0}}
+@media (max-width:480px){.list{grid-template-columns:1fr}.item .pick{gap:8px;padding-left:10px}.item .code{min-width:0;font-size:12px}.item .nm{font-size:14px}.item .qty{width:66px}.item .u{font-size:11.5px}.hero h1{font-size:27px}.nav{justify-content:flex-start}}
 .pad{border:2px dashed var(--blue);border-radius:12px;background:#fff;touch-action:none;width:100%;height:200px;display:block;cursor:crosshair}
 .sigprev{border:1px solid var(--line);border-radius:10px;background:#fff;padding:8px;max-width:340px}
 .sigprev img{max-width:100%;max-height:120px;display:block;margin:auto}
@@ -129,6 +129,49 @@ table.t th{font-size:12px;letter-spacing:.5px;text-transform:uppercase;color:var
 #toast{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);background:var(--navy);color:#fff;padding:10px 18px;border-radius:999px;font-size:14px;z-index:60;max-width:92vw}
 .warnbox{border:1.5px solid var(--bad);background:#fff;border-radius:12px;padding:14px}
 footer{max-width:1080px;margin:0 auto;padding:0 16px 40px;color:var(--muted);font-size:12.5px;text-align:center}
+/* ---- Newtecons style ---- */
+:root{--navy:#071b36;--blue:#1d5292;--blue2:#eaf1fa;--red:#ed1c24;--red2:#ed1c24;--line:#dbe4f0;--bg:#f3f5f9}
+body{background:var(--bg)}
+.hd{background:linear-gradient(90deg,#071b36,#0b2545);border-bottom:0;box-shadow:0 2px 12px rgba(7,27,54,.25)}
+.hd .in{padding:8px 16px;gap:18px;flex-wrap:nowrap}
+.logo{color:#fff;gap:10px}
+.logo i{width:34px;height:34px;border-radius:4px;background:#1d5292;font-size:18px;letter-spacing:0}
+.logo b{font-size:14px;letter-spacing:3px;font-weight:800}
+.logo>span,.logo b{display:block;color:#fff}
+.nav{justify-content:flex-start;gap:2px;overflow-x:auto;scrollbar-width:none}
+.nav::-webkit-scrollbar{display:none}
+.nav a{background:transparent;color:#b9cde6;border-radius:0;padding:12px 12px;font-size:12px;font-weight:600;letter-spacing:.8px;border-bottom:2px solid transparent}
+.nav a:hover{color:#fff}
+.nav a.on{background:transparent;color:#fff;border-bottom-color:#4e97d9}
+.who small{color:#b9cde6}
+.who .btn{background:transparent;color:#fff;border-color:#3e6c9e;min-height:34px}
+.who .btn.blue{background:#1d5292;border-color:#1d5292}
+.btn{border-radius:4px}
+.btn.red{background:#1d5292;box-shadow:none;border-color:#1d5292}
+.btn.line{color:#1d5292;border-color:#1d5292}
+main{padding:20px 16px 50px}
+.hero{text-align:left;padding:44px 28px;border-radius:6px;background:linear-gradient(105deg,rgba(7,27,54,.94) 30%,rgba(7,27,54,.55)),#071b36 url(hh12.jpg) center/cover no-repeat}
+.hero .ey{font-size:11.5px;font-weight:700;letter-spacing:3px;text-transform:uppercase;color:#4e97d9}
+.hero h1{margin:8px 0 6px;font-size:36px;font-weight:300;text-shadow:none}
+.hero h1 b{font-weight:800}
+.hero p{margin:0 0 22px;color:#b9cde6;max-width:520px}
+.cta{justify-content:flex-start}
+.hero .btn.red{background:#4e97d9;border-color:#4e97d9;color:#071b36}
+.hero .btn.line{background:transparent;color:#fff;border-color:#3e6c9e}
+.eyebrow{color:#4e97d9;letter-spacing:3px;font-size:11.5px}
+.sec{margin-top:30px}.sec h2{font-size:22px;font-weight:300;color:#071b36}.sec h2 b{font-weight:800}
+.card,.panel,.slipcard{border-radius:6px;border-color:var(--line);box-shadow:0 1px 3px rgba(7,27,54,.06)}
+.panel{padding:16px 18px;margin-top:12px}
+.panel h2{font-size:15px;letter-spacing:.3px;text-transform:uppercase;color:#071b36}
+.panel h2 i{border-radius:3px;background:#071b36;min-width:24px;height:24px}
+.ttl{margin:2px 0 0;font-size:26px;font-weight:300;color:#071b36}.ttl b{font-weight:800}
+.tabs button{border-radius:6px;min-height:52px}
+.tabs button[aria-pressed="true"]{border-color:#1d5292;background:#eaf1fa;box-shadow:inset 3px 0 0 #1d5292}
+.tabs button span{display:none}
+input,select,textarea,.item,.rowcard{border-radius:4px}
+.pad{border-color:#1d5292;border-radius:4px}
+footer{padding:0 16px 28px;font-size:11.5px;letter-spacing:.3px}
+@media(max-width:640px){.hd .in{flex-wrap:wrap;gap:6px}.logo{flex:1 1 0}.who{flex:none}.nav{order:3;flex:1 0 100%}.hero{padding:30px 18px}.hero h1{font-size:28px}.logo b{font-size:11.5px;letter-spacing:1.5px}.who .btn{padding:0 10px;font-size:12px}.who small{max-width:90px}}
 /* ---- Tờ giấy (xem trước và PDF) ---- */
 .sheet{width:794px;height:1123px;background:#fff;color:#000;padding:38px 50px;font:13.5px/1.35 "Times New Roman",Times,serif;position:relative;overflow:hidden}
 .sheet *{box-sizing:border-box}
@@ -159,7 +202,7 @@ footer{max-width:1080px;margin:0 auto;padding:0 16px 40px;color:var(--muted);fon
 .vf{position:absolute;left:50px;bottom:14px;font-size:9.5px;color:#0b2545;font-family:Arial,sans-serif}
 </style></head><body>
 <header class="hd"><div class="in">
-  <a class="logo" href="#/"><i>HH</i><span><b>Phiếu điện tử HH12</b><span>Xuất kho, mang ra công trường, ký online</span></span></a>
+  <a class="logo" href="#/"><i>N</i><span><b>NEWTECONS · HH12</b></span></a>
   <nav class="nav" id="nav" aria-label="Điều hướng"></nav>
   <div class="who" id="who"></div>
 </div></header>
@@ -169,7 +212,7 @@ footer{max-width:1080px;margin:0 auto;padding:0 16px 40px;color:var(--muted);fon
   <div class="row"><button id="openChrome" class="btn blue sm" hidden>Mở bằng Chrome</button><button id="copyLink" class="btn sm">Sao chép liên kết</button><span id="copyMsg" class="hint"></span></div>
 </div>
 <main id="app"></main>
-<footer>Dự án Khách sạn, Văn phòng, Bảo tàng HH12 Cổ Loa · Newtecons · Chữ ký điện tử nội bộ, chỉ có giá trị trong quy trình của dự án</footer>
+<footer>HH12 Cổ Loa · Newtecons · Chữ ký điện tử nội bộ trong quy trình dự án</footer>
 <div id="modal"></div><div id="toast" hidden></div>
 <div id="print" style="position:fixed;left:-12000px;top:0"></div>
 <script type="module">
@@ -374,9 +417,9 @@ const isMyTurn=s=>ME.member&&s.status==='pending'&&cur(s)&&ME.roles.includes(cur
 
 function renderChrome(){
   const r=(location.hash.replace(/^#\/?/,'').split('/')[0])||'';
-  const items=[['','Trang chủ'],['tao','Phiếu xuất / trả kho']];if(ME.member||ME.isAdmin)items.push(['thong-ke','Thống kê thiết bị']);
-  if(canNcc())items.push(['ncc','Trả vật tư NCC']);
-  if(ME.member||ME.isAdmin){items.push(['duyet','Chờ tôi ký'],['tatca','Tất cả phiếu'],['ho-so','Chữ ký của tôi']);}
+  const items=[['','Trang chủ'],['tao','Lập phiếu']];if(ME.member||ME.isAdmin)items.push(['thong-ke','Thống kê']);
+  if(canNcc())items.push(['ncc','Trả NCC']);
+  if(ME.member||ME.isAdmin){items.push(['duyet','Chờ ký'],['tatca','Tất cả phiếu'],['ho-so','Chữ ký']);}
   if(ME.isAdmin)items.push(['quan-tri','Quản trị']);
   $('nav').innerHTML=items.map(([k,l])=>`<a href="#/${k}" class="${k===r?'on':''}">${l}</a>`).join('');
   $('who').innerHTML=U?`<small title="${esc(U.email)}">${esc(ME.name||U.name)}</small><button class="btn sm" id="btnOut">Thoát</button>`:`<button class="btn blue sm" id="btnIn">Đăng nhập Google</button>`;
@@ -405,19 +448,11 @@ const needMember=()=>{app.innerHTML=`<div class="panel"><h2>Tài khoản chưa �
 function viewHome(){
   const mine=mySlips();
   const chain=k=>`<div class="chain">${FORMS[k].chain.map(([,l,m],i)=>`${i?'<i>→</i>':''}<span class="${i?(m==='auto'?'a':m==='skip'?'a':''):'g'}">${esc(l)}${m==='auto'?' (chữ ký mẫu)':m==='skip'?(l.startsWith('An ninh')?' (ký tại cổng)':' (không cần ký)'):''}</span>`).join('')}</div>`;
-  app.innerHTML=`<section class="hero"><div class="avatar" aria-hidden="true">HH12</div>
-   <span class="tag">Phiếu điện tử dự án HH12 Cổ Loa</span>
-   <h1>Lập phiếu và ký online</h1>
-   <p>Hai trang phiếu: cấp/trả vật tư cho nhà thầu phụ NTP-ĐTC, và trả vật tư thiết bị nhà cung cấp (phiếu đề nghị ra cổng). Ký online, xuất PDF gửi Zalo cho giám sát in, xuất Excel thống kê.</p>
-   <div class="stats"><div><b>4</b><span>Loại phiếu</span></div><div><b>2</b><span>Trang phiếu</span></div><div><b>23</b><span>Mã thiết bị</span></div><div><b>0</b><span>Giấy chạy tay</span></div></div>
-   <div class="cta"><a class="btn red" href="#/tao">Tạo phiếu xuất / trả kho →</a>${canNcc()?'<a class="btn line" href="#/ncc">Trả vật tư NCC</a>':'<a class="btn line" href="#/duyet">Phiếu chờ tôi ký</a>'}</div></section>
-   ${mine.length?`<section class="sec"><div class="eyebrow">Phiếu bạn đã tạo trên máy này</div><h2>Theo dõi phiếu</h2><div class="grid3">${mine.slice(0,6).map(m=>`<a class="slipcard" href="#/phieu/${m.id}"><span><b>${esc(m.code)}</b><br><small>${esc(m.doi||'')} · ${esc(fmtDT(m.at))}</small></span><span class="btn sm line">Mở</span></a>`).join('')}</div></section>`:''}
-   <section class="sec"><div class="eyebrow">Trang 1 · Nhà thầu phụ NTP-ĐTC</div><h2>Cấp / trả vật tư thiết bị</h2><p>Đội thi công tự lập phiếu không cần tài khoản. Người đề nghị ký, sau đó chỉ Giám sát phụ trách ký online. Thủ kho, GS TCTC và CHT không cần ký (để trống).</p>
-   <div class="panel"><h2>${FORMS.A.name}</h2>${chain('A')}<h2 style="margin-top:6px">${FORMS.T.name}</h2>${chain('T')}<h2 style="margin-top:6px">${FORMS.D.name}</h2>${chain('D')}<div class="row"><a class="btn red sm" href="#/tao">Tạo phiếu</a></div></div></section>
-   <section class="sec"><div class="eyebrow">Trang 2 · Nhà cung cấp (NCC)</div><h2>Trả vật tư thiết bị NCC, đề nghị ra cổng</h2><p>Chỉ quản trị và thủ kho được cấp quyền mới truy cập. Thủ kho lập, Giám sát phụ trách duyệt, sau đó chèn chữ ký mẫu.</p>
-   <div class="panel"><h2>Phiếu đề nghị ra cổng</h2>${chain('N')}${canNcc()?'<div class="row"><a class="btn blue sm" href="#/ncc">Lập phiếu NCC</a></div>':'<p class="hint">Đăng nhập bằng tài khoản được cấp quyền để lập phiếu.</p>'}</div></section>
-   <section class="sec"><div class="eyebrow">Sau khi ký xong</div><h2>Xuất file</h2>
-   <div class="grid3">${[['Xuất PDF gửi Zalo','Phiếu đã ký đủ, xuất PDF đúng mẫu và gửi Zalo cho giám sát in.'],['Excel từng phiếu','Nút xuất Excel ngay trên phiếu hoàn tất.'],['Thống kê theo nhà thầu','Mỗi nhà thầu phụ một sheet: xuất, trả, còn tại đội.']].map(([t,pp],i)=>`<div class="card"><div class="n">${i+1}</div><h3>${t}</h3><p>${pp}</p></div>`).join('')}</div></section>`;
+  app.innerHTML=`<section class="hero"><div class="ey">Dự án HH12 Cổ Loa</div>
+   <h1>Phiếu điện tử <b>ký online</b></h1>
+   <p>Xuất kho, trả kho, dự trù thiết bị. Ký trên điện thoại, xuất PDF và Excel.</p>
+   <div class="cta"><a class="btn red" href="#/tao">Lập phiếu →</a>${canNcc()?'<a class="btn line" href="#/ncc">Trả vật tư NCC</a>':'<a class="btn line" href="#/duyet">Phiếu chờ tôi ký</a>'}</div></section>
+   ${mine.length?`<section class="sec"><div class="eyebrow">Phiếu của bạn</div><h2>Theo dõi <b>phiếu</b></h2><div class="grid3">${mine.slice(0,6).map(m=>`<a class="slipcard" href="#/phieu/${m.id}"><span><b>${esc(m.code)}</b><br><small>${esc(m.doi||'')} · ${esc(fmtDT(m.at))}</small></span><span class="btn sm line">Mở</span></a>`).join('')}</div></section>`:''}`;
 }
 
 /* ===================== Tạo phiếu ===================== */
@@ -428,11 +463,11 @@ function viewCreate(mode){
   if(ncc){if(!U)return needLogin('Trang này chỉ dành cho quản trị và thủ kho được cấp quyền.');if(!canNcc()){app.innerHTML='<div class="panel"><h2>Không có quyền truy cập</h2><p class="hint">Trang Trả vật tư thiết bị NCC chỉ dành cho quản trị và thủ kho. Gửi email <b>'+esc(U.email)+'</b> cho quản trị để được cấp quyền.</p></div>';return;}}
   if(!C||C.mode!==mode)C=freshC(mode);
   const mySig=ME.profile&&ME.profile.signature;
-  app.innerHTML=`<div class="eyebrow">${ncc?'Chỉ quản trị và thủ kho':'Không cần đăng nhập'}</div><h2 style="margin:4px 0 0;font-size:26px;color:var(--navy)">${ncc?'Trả vật tư thiết bị NCC':'Tạo phiếu xuất / trả kho / dự trù'}</h2>
+  app.innerHTML=`<h2 class="ttl">${ncc?'Trả vật tư <b>thiết bị NCC</b>':'Lập <b>phiếu</b>'}</h2>
   <section class="panel"><h2><i>1</i>${ncc?'Loại phiếu':'Chọn phiếu'}</h2>${ncc?`<p class="hint" style="color:var(--ink);margin:0"><b>${esc(FORMS.N.name)}</b><br>${esc(FORMS.N.sub)}</p>`:`<div class="tabs" role="group" aria-label="Chọn mẫu phiếu">
    <button id="tabA"><b>${FORMS.A.name}</b><span>${FORMS.A.sub}</span></button><button id="tabT"><b>${FORMS.T.name}</b><span>${FORMS.T.sub}</span></button><button id="tabD"><b>${FORMS.D.name}</b><span>${FORMS.D.sub}</span></button></div>`}</section>
-  <section class="panel"><h2><i>2</i>Thông tin phiếu</h2><div id="head" class="grid"></div></section>
-  <section class="panel"><h2><i>3</i>Tick thiết bị và điền số lượng</h2>
+  <section class="panel"><h2><i>2</i>Thông tin</h2><div id="head" class="grid"></div></section>
+  <section class="panel"><h2><i>3</i>Thiết bị</h2>
    <div class="row"><input id="q" type="search" placeholder="Tìm mã hoặc tên, ví dụ RL, giằng, kích" aria-label="Tìm thiết bị" style="max-width:340px"><span id="selInfo" class="hint"></span></div>
    <div id="eqlist" style="display:flex;flex-direction:column;gap:10px"></div>
    <h3 class="g">Thiết bị khác (không có trong bảng mã)</h3><div id="custom" style="display:flex;flex-direction:column;gap:10px"></div>
@@ -441,10 +476,10 @@ function viewCreate(mode){
    <div id="padHost"></div>`}</section>
   <section class="panel"><h2><i>5</i>Xem trước và gửi duyệt</h2><div class="pvbox" id="pvbox"><div class="pvin" id="pv"></div></div>
    <div class="row"><button class="btn red" id="submit">Ký và gửi duyệt</button><span id="msg" class="msg" hidden></span></div>
-   <p class="hint">Sau khi gửi, phiếu chuyển đến ${esc(FORMS[C.kind].chain[firstManual(C.kind)][1])} ký. Các cấp còn lại tự chèn chữ ký mẫu khi duyệt xong.</p></section>`;
+   </section>`;
   padObj=ncc?null:sigPad($('padHost'));
   const st=()=>C[C.kind],F=()=>FORMS[C.kind];
-  const info=()=>{const n=itemsOf(st()).length,pages=Math.max(1,Math.ceil(n/F().per));$('selInfo').textContent=n?`Đã chọn ${n} thiết bị`:'Chưa chọn thiết bị nào';$('pageInfo').textContent=`Mỗi trang có ${F().per} dòng. Hiện ${pages} trang.`;};
+  const info=()=>{const n=itemsOf(st()).length,pages=Math.max(1,Math.ceil(n/F().per));$('selInfo').textContent=n?`Đã chọn ${n} thiết bị`:'Chưa chọn thiết bị nào';$('pageInfo').textContent=pages>1?`${pages} trang`:'';};
   const paint=()=>{const steps=newSteps(C.kind);$('pv').innerHTML=sheetsHtml(C.kind,st().head,itemsOf(st()),steps,null);fitPreview($('pvbox'));info();};
   const renderHead=()=>{
     if(!ncc){$('tabA').setAttribute('aria-pressed',C.kind==='A');$('tabT').setAttribute('aria-pressed',C.kind==='T');$('tabD').setAttribute('aria-pressed',C.kind==='D');}
