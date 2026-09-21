@@ -406,7 +406,8 @@ function initMock(){
 let DB=null,U=null,ME={member:false,roles:[],name:'',isAdmin:false,profile:null,allowed:null};
 let unwatch=null;
 const app=$('app');
-const mySlips=()=>{try{return JSON.parse(localStorage.getItem('mySlips')||'[]');}catch(e){return [];}};
+const KEEP_H=12;
+const mySlips=()=>{try{const all=JSON.parse(localStorage.getItem('mySlips')||'[]'),lim=Date.now()-KEEP_H*3600e3,a=all.filter(x=>new Date(x.at).getTime()>lim);if(a.length!==all.length)localStorage.setItem('mySlips',JSON.stringify(a));return a;}catch(e){return [];}};
 const remember=o=>{try{const a=mySlips().filter(x=>x.id!==o.id);a.unshift(o);localStorage.setItem('mySlips',JSON.stringify(a.slice(0,30)));}catch(e){}};
 const cur=s=>s.steps[s.currentStep];
 const badge=s=>`<span class="badge b-${s.status}">${s.status==='pending'&&cur(s)?'Chờ: '+esc(cur(s).label):STATUS[s.status]}</span>`;
@@ -467,7 +468,7 @@ function viewHome(){
    <h1>Phiếu điện tử <b>ký online</b></h1>
    <p>Xuất kho, trả kho, dự trù thiết bị. Ký trên điện thoại, xuất PDF và Excel.</p>
    <div class="cta"><a class="btn red" href="#/tao">Lập phiếu →</a>${canNcc()?'<a class="btn line" href="#/ncc">Trả vật tư NCC</a>':'<a class="btn line" href="#/duyet">Phiếu chờ tôi ký</a>'}</div></section>
-   ${mine.length?`<section class="sec"><div class="eyebrow">Phiếu của bạn</div><h2>Theo dõi <b>phiếu</b></h2><div class="grid3">${mine.slice(0,6).map(m=>`<a class="slipcard" href="#/phieu/${m.id}"><span><b>${esc(m.code)}</b><br><small>${esc(m.doi||'')} · ${esc(fmtDT(m.at))}</small></span><span class="btn sm line">Mở</span></a>`).join('')}</div></section>`:''}`;
+   ${mine.length?`<section class="sec"><div class="eyebrow">Phiếu của bạn</div><h2>Theo dõi <b>phiếu</b></h2><p class="hint" style="margin:0 0 10px">Phiếu bạn vừa lập, tự ẩn khỏi danh sách sau 12 giờ.</p><div class="grid3">${mine.slice(0,6).map(m=>`<a class="slipcard" href="#/phieu/${m.id}"><span><b>${esc(m.code)}</b><br><small>${esc(m.doi||'')} · ${esc(fmtDT(m.at))}</small></span><span class="btn sm line">Mở</span></a>`).join('')}</div></section>`:''}`;
 }
 
 /* ===================== Tạo phiếu ===================== */
