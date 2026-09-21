@@ -415,6 +415,21 @@ const slipLink=id=>location.origin+location.pathname+'#/phieu/'+id;
 const canNcc=()=>!!(U&&ME.member&&(ME.isAdmin||ME.roles.includes('thu_kho')));
 const isMyTurn=s=>ME.member&&s.status==='pending'&&cur(s)&&ME.roles.includes(cur(s).role);
 
+
+/* Tách nét chữ ký khỏi ảnh chụp: mực xanh theo màu, mực đen theo độ tối so với nền giấy quanh đó; nền thành trong suốt */
+const imgToSig=file=>new Promise((res,rej)=>{const fr=new FileReader();fr.onerror=()=>rej(new Error('không đọc được ảnh'));fr.onload=()=>{const im=new Image();im.onerror=()=>rej(new Error('ảnh không hợp lệ'));im.onload=()=>{
+  const k=Math.min(2,Math.max(1,420/im.width),900/im.width),w=Math.max(1,Math.round(im.width*k)),h=Math.max(1,Math.round(im.height*k));
+  const cv=document.createElement('canvas');cv.width=w;cv.height=h;const cx=cv.getContext('2d');cx.drawImage(im,0,0,w,h);
+  const d=cx.getImageData(0,0,w,h),a=d.data,B=Math.max(12,Math.round(Math.min(w,h)/8)),gw=Math.ceil(w/B),gh=Math.ceil(h/B),bg=new Float32Array(gw*gh);
+  const lumAt=i=>(a[i]*.299+a[i+1]*.587+a[i+2]*.114);
+  for(let gy=0;gy<gh;gy++)for(let gx=0;gx<gw;gx++){const v=[];for(let y=gy*B;y<Math.min(h,gy*B+B);y+=2)for(let x=gx*B;x<Math.min(w,gx*B+B);x+=2)v.push(lumAt((y*w+x)*4));v.sort((p,q)=>p-q);bg[gy*gw+gx]=v[Math.floor(v.length*.85)]||255;}
+  const bgAt=(x,y)=>{let m=0;const gx=Math.min(gw-1,Math.floor(x/B)),gy=Math.min(gh-1,Math.floor(y/B));for(let j=-1;j<=1;j++)for(let i=-1;i<=1;i++){const X=gx+i,Y=gy+j;if(X>=0&&Y>=0&&X<gw&&Y<gh)m=Math.max(m,bg[Y*gw+X]);}return m||255;};
+  let x0=w,y0=h,x1=0,y1=0,cnt=0;
+  for(let y=0;y<h;y++)for(let x=0;x<w;x++){const i=(y*w+x)*4,r=a[i],g=a[i+1],b=a[i+2],l=lumAt(i),bgl=bgAt(x,y);
+    const blue=Math.max(0,Math.min(1,((b-r)-18)/45)),dark=Math.max(0,Math.min(1,((bgl-l)/bgl-.22)/.28)),al=Math.max(blue,dark);
+    if(al>0.02){a[i]=Math.round(r*.8);a[i+1]=Math.round(g*.85);a[i+2]=Math.round(b*.95);a[i+3]=Math.round(Math.pow(al,.8)*255);if(al>.3){cnt++;if(x<x0)x0=x;if(x>x1)x1=x;if(y<y0)y0=y;if(y>y1)y1=y;}}else a[i+3]=0;}
+  if(cnt<30||x1<=x0||y1<=y0){rej(new Error('không thấy nét chữ ký trong ảnh'));return;}
+  cx.putImageData(d,0,0);const pd=6,c2=document.createElement('canvas');c2.width=x1-x0+1+pd*2;c2.height=y1-y0+1+pd*2;c2.getContext('2d').drawImage(cv,x0,y0,x1-x0+1,y1-y0+1,pd,pd,x1-x0+1,y1-y0+1);res(c2.toDataURL('image/png'));};im.src=fr.result;};fr.readAsDataURL(file);});
 function renderChrome(){
   const r=(location.hash.replace(/^#\/?/,'').split('/')[0])||'';
   const items=[['','Trang chủ'],['tao','Lập phiếu']];if(ME.member||ME.isAdmin)items.push(['thong-ke','Thống kê']);
@@ -833,15 +848,17 @@ function viewProfile(){
     <label class="f" for="pname">Họ tên hiển thị trên phiếu<input id="pname" value="${esc(ME.name)}"></label></section>
    <section class="panel"><h2>${sig?'Chữ ký đã khai báo':'Chưa có chữ ký'}</h2>${sig?`<div class="sigprev"><img src="${sig}" alt="Chữ ký hiện tại"></div>`:'<p class="hint">Vẽ chữ ký một lần. Các lần sau bạn chỉ cần bấm Ký.</p>'}
     <h2 style="font-size:15px">${sig?'Ký lại để thay chữ ký':'Ký tên vào khung'}</h2><div id="padHost"></div>
+    <label class="f" for="sigfile" style="margin-top:4px">Hoặc tải ảnh chữ ký (chụp trên giấy trắng, tự tách nét, bỏ nền giấy)<input id="sigfile" type="file" accept="image/*"></label><div id="sigup"></div>
     <div class="row"><button class="btn red" id="save">Lưu chữ ký</button><span id="msg" class="msg" hidden></span></div></section>`;
-  const pad=sigPad($('padHost'));
+  const pad=sigPad($('padHost'));let upSig=null;
   const setMsg=(t,k)=>{$('msg').hidden=!t;$('msg').textContent=t||'';$('msg').className='msg '+(k||'');};
+  $('sigfile').onchange=async()=>{const f=$('sigfile').files[0];if(!f)return;try{upSig=await imgToSig(f);$('sigup').innerHTML='<p class="hint" style="margin:6px 0">Chữ ký từ ảnh (bấm Lưu chữ ký để dùng):</p><div class="sigprev"><img src="'+upSig+'" alt="Chữ ký từ ảnh"></div>';setMsg('');}catch(x){upSig=null;setMsg('Không đọc được ảnh: '+x.message,'err');}};
   $('save').onclick=async()=>{
     const name=$('pname').value.trim();if(!name){setMsg('Nhập họ tên hiển thị.','err');return;}
-    if(pad.empty()&&!sig){setMsg('Chưa có chữ ký, hãy ký trong khung.','err');return;}
+    if(pad.empty()&&!sig&&!upSig){setMsg('Chưa có chữ ký, hãy ký trong khung hoặc tải ảnh.','err');return;}
     $('save').disabled=true;
     try{
-      const data=pad.empty()?sig:pad.data();
+      const data=upSig||(pad.empty()?sig:pad.data());
       await DB.saveProfile(U.uid,{signature:data,name,email:U.email,updatedAt:new Date().toISOString()});
       if(name!==ME.name&&ME.allowed){try{await DB.setAllowed(U.email,{...ME.allowed,name});}catch(e){}}
       ME.profile={...(ME.profile||{}),signature:data,name};ME.name=name;renderChrome();toast('Đã lưu chữ ký.');viewProfile();
@@ -868,12 +885,6 @@ async function viewAdmin(){
    <section class="panel"><h2>Danh sách (${list.length})</h2>${list.map(a=>`<div class="card" style="padding:14px"><div class="row" style="justify-content:space-between"><div><b>${esc(a.name||'')}</b><br><small class="hint">${esc(a.email)}${a.admin?' · quản trị':''}</small></div>${a.email===ADMIN?'':`<button class="btn sm" data-del="${esc(a.email)}">Xoá</button>`}</div>${roleBox(a.email,a.roles||[])}</div>`).join('')}</section>`;
   const setMsg=(t,k)=>{$('msg').hidden=!t;$('msg').textContent=t||'';$('msg').className='msg '+(k||'');};
   $('syncSeq').onclick=async()=>{try{const all=await DB.listSlips();const cnt={};all.forEach(s=>{const k=slugOf(s.head.doi||s.head.don_vi,s.type==='N',s.type==='D');cnt[k]=(cnt[k]||0)+1;});const out=[];for(const k of Object.keys(cnt)){const n=await DB.syncSeq(k,cnt[k]);out.push(k+': '+n);}$('syncMsg').textContent=out.length?'Đã đồng bộ — '+out.join(' · '):'Chưa có phiếu.';}catch(e){$('syncMsg').textContent='Lỗi: '+(e.code||e.message);}};
-  const imgToSig=file=>new Promise((res,rej)=>{const fr=new FileReader();fr.onerror=()=>rej(new Error('không đọc được ảnh'));fr.onload=()=>{const im=new Image();im.onerror=()=>rej(new Error('ảnh không hợp lệ'));im.onload=()=>{
-    const k=Math.min(1,420/im.width),w=Math.max(1,Math.round(im.width*k)),h=Math.max(1,Math.round(im.height*k));const cv=document.createElement('canvas');cv.width=w;cv.height=h;const cx=cv.getContext('2d');cx.drawImage(im,0,0,w,h);
-    const d=cx.getImageData(0,0,w,h),a=d.data;let x0=w,y0=h,x1=0,y1=0;
-    for(let i=0;i<a.length;i+=4){const lum=(a[i]+a[i+1]+a[i+2])/3;if(lum>200){a[i+3]=0;}else{a[i+3]=lum>150?Math.round((200-lum)*255/50):255;const p=i/4,x=p%w,y=(p-x)/w;if(x<x0)x0=x;if(x>x1)x1=x;if(y<y0)y0=y;if(y>y1)y1=y;}}
-    if(x1<=x0||y1<=y0){rej(new Error('không thấy nét chữ ký trong ảnh'));return;}
-    cx.putImageData(d,0,0);const c2=document.createElement('canvas');const pd=6;c2.width=x1-x0+1+pd*2;c2.height=y1-y0+1+pd*2;c2.getContext('2d').drawImage(cv,x0,y0,x1-x0+1,y1-y0+1,pd,pd,x1-x0+1,y1-y0+1);res(c2.toDataURL('image/png'));};im.src=fr.result;};fr.readAsDataURL(file);});
   app.querySelectorAll('[data-stsave]').forEach(b=>b.onclick=async()=>{
     const r=b.dataset.stsave,nm=app.querySelector(`[data-stn="${r}"]`).value.trim(),f=app.querySelector(`[data-stf="${r}"]`).files[0];
     if(!nm){toast('Nhập họ tên in trên phiếu.');return;}
