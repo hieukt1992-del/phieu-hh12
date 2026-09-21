@@ -237,7 +237,7 @@ const modal=(html)=>new Promise(res=>{const m=$('modal');m.innerHTML='<div class
 const closeModal=()=>{$('modal').innerHTML='';};
 
 /* ===================== Danh mục ===================== */
-const CAT=[["RL-25","Ringlock 2.5m","cây"],["RL-15","Ringlock 1.5m","cây"],["RL-10","Ringlock 1.0m","cây"],["GN-12","Giằng ngang 1.2m","cây"],["GN-06","Giằng ngang 0.6m","cây"],["GX-1215","Giằng chéo 1.2x1.5m","cây"],["GX-0615","Giằng chéo 0.6x1.5m","cây"],["KD-38","Kích đế d38x600","Cái"],["KU-38","Kích U d38x600","Cái"],["KU-CS","Kích U console","Cái"],["KU-KD","Kích U kẹp đôi","Cái"],["TH100-4","Thép hộp 50x100x4m","Cái"],["TH100-3","Thép hộp 50x100x3m","Cái"],["TH100-2","Thép hộp 50x100x2m","Cái"],["TH50-6","Thép hộp 50x50x6m","m"],["TH50-4","Thép hộp 50x50x4m","m"],["TH50-3","Thép hộp 50x50x3m","m"],["TH50-2","Thép hộp 50x50x2m","m"],["PK-TG","Tuýp gông hệ chống","m"],["PK-CU","Cùm","cái"],["PK-GO","Gông","cái"],["PK-TY","Ty","m"],["PK-OB","Óc bát","con"]];
+const CAT=[["RL-25","Ringlock 2.5m","cây"],["RL-15","Ringlock 1.5m","cây"],["RL-10","Ringlock 1.0m","cây"],["GN-12","Giằng ngang 1.2m","cây"],["GN-06","Giằng ngang 0.6m","cây"],["GX-1215","Giằng chéo 1.2x1.5m","cây"],["GX-0615","Giằng chéo 0.6x1.5m","cây"],["KD-38","Kích đế d38x600","Cái"],["KU-38","Kích U d38x600","Cái"],["KU-CS","Kích U console","Cái"],["KU-KD","Kích U kẹp đôi","Cái"],["TH100-4","Thép hộp 50x100x4m","cây"],["TH100-3","Thép hộp 50x100x3m","cây"],["TH100-2","Thép hộp 50x100x2m","cây"],["TH50-6","Thép hộp 50x50x6m","cây"],["TH50-4","Thép hộp 50x50x4m","cây"],["TH50-3","Thép hộp 50x50x3m","cây"],["TH50-2","Thép hộp 50x50x2m","cây"],["PK-TG","Tuýp gông hệ chống","cây"],["PK-CU","Cùm","cái"],["PK-GO","Gông","cái"],["PK-TY","Ty","m"],["PK-OB","Óc bát","con"]];
 const LISTS={DOI:['An Phát','BCH','Đỗ Đình Tán','ĐTC Khoa','ĐTC Liên Copha','ĐTC Trường','ĐTC Xây Lắp Copha','Đức Hiểu','Gia Phạm','Hải Đăng','Hòa Thùy','Hoàng Văn Tiến','Lê Văn Thuật','Minh Sơn','NTP Bảo Hưng','NTP Gia Phong','NTP Neo','NTP Quang Thái','NTP Trung Hải','Nguyễn Đức Kiên','Tổ Thép Lương','Tuấn Anh','UTCONTS'],HM:['Tháp khách sạn','Tháp văn phòng','Khối podium']};
 const HEADA=[['ngay','Ngày lập phiếu','date'],['so','Số phiếu','text'],['hang_muc','Hạng mục','HM'],['doi','Đội thi công (nhà thầu phụ)','DOI'],['ngay_dn','Ngày đề nghị','date'],['sdt','Số điện thoại Zalo của người đề nghị','tel']];
 const CHAINA=k=>[['nguoi_de_nghi','Người đề nghị'],['thu_kho','Thủ kho','skip'],['gs_tctc','GS. TCTC','skip'],['gs_phu_trach','GS. Phụ trách'],['cht','Chỉ Huy Trưởng','skip']];
@@ -918,7 +918,7 @@ async function viewStats(){
     all.filter(s=>s.type!=='N'&&(incl?s.status!=='rejected':s.status==='done')).forEach(s=>{
       const dt=s.head.ngay_xuat||s.head.ngay||'';if((d1&&dt<d1)||(d2&&dt>d2))return;
       const g=who(s)||'Chưa rõ';const o=G[g]=G[g]||{name:g,x:0,t:0,d:0,items:{},slips:[]};o.slips.push(s);
-      s.items.forEach(i=>{const sl=num(i.sl);if(!sl)return;const k=(i.ma||'')+'|'+i.ten+'|'+i.dvt;const it=o.items[k]=o.items[k]||{ma:i.ma||'',ten:i.ten,dvt:i.dvt,x:0,t:0,d:0};
+      s.items.forEach(i=>{const sl=num(i.sl);if(!sl)return;const cc=CAT.find(x=>x[0]===i.ma),dv=cc?cc[2]:i.dvt;const k=(i.ma||'')+'|'+i.ten+'|'+dv;const it=o.items[k]=o.items[k]||{ma:i.ma||'',ten:i.ten,dvt:dv,x:0,t:0,d:0};
         if(s.type==='A'){it.x+=sl;o.x+=sl;}else if(s.type==='D'){it.d+=sl;o.d+=sl;}else{it.t+=sl;o.t+=sl;}});
     });
     return Object.values(G).sort((a,b)=>a.name.localeCompare(b.name,'vi'));
