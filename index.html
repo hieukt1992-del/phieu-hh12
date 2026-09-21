@@ -203,6 +203,8 @@ const FORMS={
   head:[...HEADA,['ngay_xuat','Ngày xuất','date']],req:['ngay_dn','ngay_xuat','sdt'],chain:CHAINA()},
  T:{code:'PT',file:'Phieu-tra-kho',name:'Phiếu trả kho',sub:'Đề nghị cung cấp vật tư kiêm phiếu trả kho',title:'PHIẾU ĐỀ NGHỊ CUNG CẤP VẬT TƯ<br>KIÊM PHIẾU TRẢ KHO',dl:'Ngày trả',per:13,layout:'A',
   head:[...HEADA,['ngay_xuat','Ngày trả','date']],req:['ngay_dn','ngay_xuat','sdt'],chain:CHAINA()},
+ D:{code:'DT',file:'Phieu-du-tru-thiet-bi',name:'Phiếu dự trù thiết bị',sub:'Dự trù thiết bị theo vị trí / zone thi công',title:'PHIẾU DỰ TRÙ THIẾT BỊ',dl:'Ngày cần thiết bị',per:12,layout:'A',
+  head:[...HEADA,['zone','Vị trí / Zone thi công','text'],['ngay_xuat','Ngày cần thiết bị','date']],req:['ngay_dn','ngay_xuat','sdt','zone'],chain:CHAINA()},
  N:{code:'NCC',file:'Phieu-tra-NCC-ra-cong',name:'Trả vật tư thiết bị NCC (phiếu đề nghị ra cổng)',sub:'Đăng ký vật tư/tài sản mang ra khỏi công trường trả nhà cung cấp',title:'ĐĂNG KÝ VẬT TƯ/TÀI SẢN MANG RA KHỎI<br>CÔNG TRƯỜNG',per:15,layout:'B',
   head:[['ngay','Ngày lập phiếu','date'],['so','Số phiếu','text'],['don_vi','Tên đơn vị (nhà cung cấp) nhận trả','text'],['nguoi','Tên người mang ra','text'],['cmnd','Số CMND','text'],['bien_so','Biển số xe','text'],['gio','Giờ mang ra','time'],['ngay_mang','Ngày mang ra','date']],req:['don_vi'],
   chain:[['don_vi','Đơn vị đăng ký (thủ kho lập)'],['thu_kho','Thủ kho','auto'],['gs_phu_trach','Giám sát phụ trách'],['cht','CHT','auto'],['an_ninh','An ninh cổng','skip']]}
@@ -215,7 +217,7 @@ const firstManual=k=>FORMS[k].chain.findIndex((c,i)=>i>0&&!c[2]);
 const signedN=s=>s.steps.filter(x=>x.sig).length;
 const itemsOf=st=>{const out=[];CAT.forEach(c=>{const x=st.sel[c[0]];if(x&&x.on)out.push({ma:c[0],ten:c[1]+' ('+c[0]+')',dvt:c[2],sl:x.sl||''});});st.custom.filter(filled).forEach(r=>out.push({ten:r.ten||'',dvt:r.dvt||'',sl:r.sl||''}));return out;};
 const grpOf=c=>c.startsWith('TH100')?'Thép hộp 50x100':c.startsWith('TH50')?'Thép hộp 50x50':c.startsWith('RL')?'Hệ giáo Ringlock':c.startsWith('GN')?'Giằng ngang':c.startsWith('GX')?'Giằng chéo':c.startsWith('K')?'Kích chống':'Phụ kiện hệ chống';
-const slugOf=(nm,ncc)=>(ncc?'NCC-':'')+(String(nm||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/đ/g,'d').replace(/Đ/g,'D').toUpperCase().replace(/[^A-Z0-9]+/g,'-').replace(/^-+|-+$/g,'')||'KHAC');
+const slugOf=(nm,ncc,dt)=>(ncc?'NCC-':dt?'DT-':'')+(String(nm||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/đ/g,'d').replace(/Đ/g,'D').toUpperCase().replace(/[^A-Z0-9]+/g,'-').replace(/^-+|-+$/g,'')||'KHAC');
 const newCode=k=>{const d=new Date();return FORMS[k].code+'-'+String(d.getFullYear()).slice(2)+pad2(d.getMonth()+1)+pad2(d.getDate())+'-'+Math.random().toString(36).slice(2,6).toUpperCase();};
 
 /* ===================== Tờ giấy ===================== */
@@ -235,6 +237,7 @@ function sheetA(h,rows,pg,tot,steps,slip,kind){
   return `<div class="sheet">${headerBlock(F,h,slip&&slip.code)}
    <div class="line2" style="margin-top:16px"><span>Hạng mục&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:</span><span class="v" style="max-width:260px">${esc(h.hang_muc||'')}</span></div>
    <div class="line2"><span>Đội thi công :</span><span class="v" style="max-width:260px">${esc(h.doi||'')}</span></div>
+   ${F.code==='DT'?`<div class="line2"><span>Vị trí / Zone :</span><span class="v" style="max-width:260px">${esc(h.zone||'')}</span></div>`:''}
    <div class="line2"><span>Ngày đề nghị : ${blankD(h.ngay_dn)}</span><span style="margin-left:14px">${esc(F.dl)}: ${blankD(h.ngay_xuat)}</span></div>
    <table class="tb"><colgroup><col style="width:46px"><col style="width:214px"><col style="width:60px"><col style="width:112px"><col style="width:66px"><col style="width:100px"><col></colgroup>
    <thead><tr><th>Stt</th><th>Tên vật tư, máy móc thiết bị</th><th>ĐVT</th><th>Quy cách</th><th>Số lượng</th><th>Ký nhận</th><th>Ghi chú</th></tr></thead><tbody>${tr}</tbody></table>
@@ -406,11 +409,11 @@ function viewHome(){
    <span class="tag">Phiếu điện tử dự án HH12 Cổ Loa</span>
    <h1>Lập phiếu và ký online</h1>
    <p>Hai trang phiếu: cấp/trả vật tư cho nhà thầu phụ NTP-ĐTC, và trả vật tư thiết bị nhà cung cấp (phiếu đề nghị ra cổng). Ký online, xuất PDF gửi Zalo cho giám sát in, xuất Excel thống kê.</p>
-   <div class="stats"><div><b>3</b><span>Loại phiếu</span></div><div><b>2</b><span>Trang phiếu</span></div><div><b>23</b><span>Mã thiết bị</span></div><div><b>0</b><span>Giấy chạy tay</span></div></div>
+   <div class="stats"><div><b>4</b><span>Loại phiếu</span></div><div><b>2</b><span>Trang phiếu</span></div><div><b>23</b><span>Mã thiết bị</span></div><div><b>0</b><span>Giấy chạy tay</span></div></div>
    <div class="cta"><a class="btn red" href="#/tao">Tạo phiếu xuất / trả kho →</a>${canNcc()?'<a class="btn line" href="#/ncc">Trả vật tư NCC</a>':'<a class="btn line" href="#/duyet">Phiếu chờ tôi ký</a>'}</div></section>
    ${mine.length?`<section class="sec"><div class="eyebrow">Phiếu bạn đã tạo trên máy này</div><h2>Theo dõi phiếu</h2><div class="grid3">${mine.slice(0,6).map(m=>`<a class="slipcard" href="#/phieu/${m.id}"><span><b>${esc(m.code)}</b><br><small>${esc(m.doi||'')} · ${esc(fmtDT(m.at))}</small></span><span class="btn sm line">Mở</span></a>`).join('')}</div></section>`:''}
    <section class="sec"><div class="eyebrow">Trang 1 · Nhà thầu phụ NTP-ĐTC</div><h2>Cấp / trả vật tư thiết bị</h2><p>Đội thi công tự lập phiếu không cần tài khoản. Người đề nghị ký, sau đó chỉ Giám sát phụ trách ký online. Thủ kho, GS TCTC và CHT không cần ký (để trống).</p>
-   <div class="panel"><h2>${FORMS.A.name}</h2>${chain('A')}<h2 style="margin-top:6px">${FORMS.T.name}</h2>${chain('T')}<div class="row"><a class="btn red sm" href="#/tao">Tạo phiếu</a></div></div></section>
+   <div class="panel"><h2>${FORMS.A.name}</h2>${chain('A')}<h2 style="margin-top:6px">${FORMS.T.name}</h2>${chain('T')}<h2 style="margin-top:6px">${FORMS.D.name}</h2>${chain('D')}<div class="row"><a class="btn red sm" href="#/tao">Tạo phiếu</a></div></div></section>
    <section class="sec"><div class="eyebrow">Trang 2 · Nhà cung cấp (NCC)</div><h2>Trả vật tư thiết bị NCC, đề nghị ra cổng</h2><p>Chỉ quản trị và thủ kho được cấp quyền mới truy cập. Thủ kho lập, Giám sát phụ trách duyệt, sau đó chèn chữ ký mẫu.</p>
    <div class="panel"><h2>Phiếu đề nghị ra cổng</h2>${chain('N')}${canNcc()?'<div class="row"><a class="btn blue sm" href="#/ncc">Lập phiếu NCC</a></div>':'<p class="hint">Đăng nhập bằng tài khoản được cấp quyền để lập phiếu.</p>'}</div></section>
    <section class="sec"><div class="eyebrow">Sau khi ký xong</div><h2>Xuất file</h2>
@@ -419,15 +422,15 @@ function viewHome(){
 
 /* ===================== Tạo phiếu ===================== */
 let C=null,padObj=null;
-const freshC=mode=>({mode,kind:mode==='ncc'?'N':'A',A:{head:{ngay:today()},sel:{},custom:[]},T:{head:{ngay:today()},sel:{},custom:[]},N:{head:{ngay:today()},sel:{},custom:[]},signer:''});
+const freshC=mode=>({mode,kind:mode==='ncc'?'N':'A',A:{head:{ngay:today()},sel:{},custom:[]},T:{head:{ngay:today()},sel:{},custom:[]},D:{head:{ngay:today()},sel:{},custom:[]},N:{head:{ngay:today()},sel:{},custom:[]},signer:''});
 function viewCreate(mode){
   mode=mode||'kho';const ncc=mode==='ncc';
   if(ncc){if(!U)return needLogin('Trang này chỉ dành cho quản trị và thủ kho được cấp quyền.');if(!canNcc()){app.innerHTML='<div class="panel"><h2>Không có quyền truy cập</h2><p class="hint">Trang Trả vật tư thiết bị NCC chỉ dành cho quản trị và thủ kho. Gửi email <b>'+esc(U.email)+'</b> cho quản trị để được cấp quyền.</p></div>';return;}}
   if(!C||C.mode!==mode)C=freshC(mode);
   const mySig=ME.profile&&ME.profile.signature;
-  app.innerHTML=`<div class="eyebrow">${ncc?'Chỉ quản trị và thủ kho':'Không cần đăng nhập'}</div><h2 style="margin:4px 0 0;font-size:26px;color:var(--navy)">${ncc?'Trả vật tư thiết bị NCC':'Tạo phiếu xuất / trả kho'}</h2>
+  app.innerHTML=`<div class="eyebrow">${ncc?'Chỉ quản trị và thủ kho':'Không cần đăng nhập'}</div><h2 style="margin:4px 0 0;font-size:26px;color:var(--navy)">${ncc?'Trả vật tư thiết bị NCC':'Tạo phiếu xuất / trả kho / dự trù'}</h2>
   <section class="panel"><h2><i>1</i>${ncc?'Loại phiếu':'Chọn phiếu'}</h2>${ncc?`<p class="hint" style="color:var(--ink);margin:0"><b>${esc(FORMS.N.name)}</b><br>${esc(FORMS.N.sub)}</p>`:`<div class="tabs" role="group" aria-label="Chọn mẫu phiếu">
-   <button id="tabA"><b>${FORMS.A.name}</b><span>${FORMS.A.sub}</span></button><button id="tabT"><b>${FORMS.T.name}</b><span>${FORMS.T.sub}</span></button></div>`}</section>
+   <button id="tabA"><b>${FORMS.A.name}</b><span>${FORMS.A.sub}</span></button><button id="tabT"><b>${FORMS.T.name}</b><span>${FORMS.T.sub}</span></button><button id="tabD"><b>${FORMS.D.name}</b><span>${FORMS.D.sub}</span></button></div>`}</section>
   <section class="panel"><h2><i>2</i>Thông tin phiếu</h2><div id="head" class="grid"></div></section>
   <section class="panel"><h2><i>3</i>Tick thiết bị và điền số lượng</h2>
    <div class="row"><input id="q" type="search" placeholder="Tìm mã hoặc tên, ví dụ RL, giằng, kích" aria-label="Tìm thiết bị" style="max-width:340px"><span id="selInfo" class="hint"></span></div>
@@ -444,7 +447,7 @@ function viewCreate(mode){
   const info=()=>{const n=itemsOf(st()).length,pages=Math.max(1,Math.ceil(n/F().per));$('selInfo').textContent=n?`Đã chọn ${n} thiết bị`:'Chưa chọn thiết bị nào';$('pageInfo').textContent=`Mỗi trang có ${F().per} dòng. Hiện ${pages} trang.`;};
   const paint=()=>{const steps=newSteps(C.kind);$('pv').innerHTML=sheetsHtml(C.kind,st().head,itemsOf(st()),steps,null);fitPreview($('pvbox'));info();};
   const renderHead=()=>{
-    if(!ncc){$('tabA').setAttribute('aria-pressed',C.kind==='A');$('tabT').setAttribute('aria-pressed',C.kind==='T');}
+    if(!ncc){$('tabA').setAttribute('aria-pressed',C.kind==='A');$('tabT').setAttribute('aria-pressed',C.kind==='T');$('tabD').setAttribute('aria-pressed',C.kind==='D');}
     $('head').innerHTML=F().head.filter(h=>h[0]!=='so').map(([k,l,t])=>{
       const v=st().head[k]||'';
       if(LISTS[t]){const list=LISTS[t],other=st().head['_o_'+k]||(v&&!list.includes(v));
@@ -462,7 +465,7 @@ function viewCreate(mode){
    <label class="f name">Tên thiết bị / vật tư<input data-c="ten" autocomplete="off" value="${esc(r.ten||'')}"></label>
    <label class="f">ĐVT<input data-c="dvt" value="${esc(r.dvt||'')}"></label><label class="f">Số lượng<input data-c="sl" inputmode="decimal" value="${esc(r.sl||'')}"></label></div>`).join('');};
   const all=()=>{renderHead();renderList();renderCustom();paint();};
-  if(!ncc){$('tabA').onclick=()=>{C.kind='A';all();};$('tabT').onclick=()=>{C.kind='T';all();};}
+  if(!ncc){$('tabA').onclick=()=>{C.kind='A';all();};$('tabT').onclick=()=>{C.kind='T';all();};$('tabD').onclick=()=>{C.kind='D';all();};}
   $('head').addEventListener('input',e=>{if(e.target.dataset.h){e.target.classList.remove('invalid');st().head[e.target.dataset.h]=e.target.value;paint();}});
   $('head').addEventListener('change',e=>{const k=e.target.dataset.s;if(!k)return;
     if(e.target.value==='__other'){st().head['_o_'+k]=true;st().head[k]='';renderHead();const o=$('head').querySelector(`[data-h="${k}"]`);if(o)o.focus();}
@@ -492,7 +495,7 @@ function viewCreate(mode){
     try{
       const steps=newSteps(kind),fm=firstManual(kind),sname=ncc?ME.name:C.signer.trim();steps[0]=ncc?{...steps[0],name:sname,email:U.email,sig:mySig,at:new Date().toISOString()}:{...steps[0],name:sname,sig:padObj.data(),at:new Date().toISOString(),guest:true};
       const head={};Object.entries(s.head).forEach(([k,v])=>{if(!k.startsWith('_o_')&&typeof v==='string'&&v.trim())head[k]=v.trim();});
-      const slug=slugOf(head.doi||head.don_vi,ncc);
+      const slug=slugOf(head.doi||head.don_vi,ncc,kind==='D');
       let seq=null;try{seq=await DB.nextSeq(slug);}catch(e){}
       const so=seq?'HH12_'+slug+'_'+String(seq).padStart(3,'0'):'HH12_'+slug+'_'+Date.now().toString(36).toUpperCase().slice(-5);
       head.so=so;
@@ -576,9 +579,9 @@ async function exportXlsx(list,opt){
   const GOLD='FFC9A24B',LIGHT='FFEAF0FA';
   const title=(ws,t,n)=>{ws.addRow([t]);ws.mergeCells(1,1,1,n);ws.getCell('A1').font={bold:true,size:13,name:'Times New Roman',color:{argb:NAVY}};ws.addRow(['Ngày xuất báo cáo: '+fmtD(today())+' · chỉ tính phiếu đã ký đủ']);ws.mergeCells(2,1,2,n);ws.getCell('A2').font={italic:true,name:'Times New Roman'};};
   // gom theo nhà thầu: mỗi mã một dòng
-  const agg=ss=>{const M={};CAT.forEach(c=>M[c[0]]={ma:c[0],ten:c[1],grp:GRP(c[0]),dvt:c[2],x:0,t:0});const O={};
-    ss.forEach(s=>s.items.forEach(i=>{const sl=num(i.sl);if(!sl)return;const c=codeOf(i);let o;if(c)o=M[c];else{const k=(i.ten||'')+'|'+(i.dvt||'');o=O[k]=O[k]||{ma:'',ten:i.ten||'',grp:'Vật tư khác',dvt:i.dvt||'',x:0,t:0};}
-      if(s.type==='A')o.x+=sl;else o.t+=sl;}));
+  const agg=ss=>{const M={};CAT.forEach(c=>M[c[0]]={ma:c[0],ten:c[1],grp:GRP(c[0]),dvt:c[2],x:0,t:0,d:0});const O={};
+    ss.forEach(s=>s.items.forEach(i=>{const sl=num(i.sl);if(!sl)return;const c=codeOf(i);let o;if(c)o=M[c];else{const k=(i.ten||'')+'|'+(i.dvt||'');o=O[k]=O[k]||{ma:'',ten:i.ten||'',grp:'Vật tư khác',dvt:i.dvt||'',x:0,t:0,d:0};}
+      if(s.type==='A')o.x+=sl;else if(s.type==='D')o.d+=sl;else o.t+=sl;}));
     return [...CAT.map(c=>M[c[0]]),...Object.values(O)];};
   const ntpSs=done.filter(s=>s.type!=='N'),nccSs=done.filter(s=>s.type==='N');
   const groups={};ntpSs.forEach(s=>{const g=who(s)||'Chưa rõ';(groups[g]=groups[g]||[]).push(s);});
@@ -611,31 +614,31 @@ async function exportXlsx(list,opt){
   const data=names.map(g=>({g,rows:agg(groups[g])}));
   const nR=CAT.length;
   const extraKeys=[];data.forEach(d=>d.rows.slice(nR).forEach(o=>{const k=o.ten+'|'+o.dvt;if(!extraKeys.includes(k))extraKeys.push(k);}));
-  title(w0,'TỔNG HỢP VẬT TƯ THIẾT BỊ NTP-ĐTC ĐANG NHẬN · DỰ ÁN HH12 CỔ LOA (đang nhận = xuất − trả)',5+names.length+3);
+  title(w0,'TỔNG HỢP VẬT TƯ THIẾT BỊ NTP-ĐTC ĐANG NHẬN · DỰ ÁN HH12 CỔ LOA (đang nhận = xuất − trả; dự trù tính riêng)',5+names.length+4);
   w0.addRow([]);
-  w0.addRow([...tblHdr,...names,'Tổng xuất','Tổng trả','NTP-ĐTC đang nhận']);hdr(w0,4);
-  [6,12,26,22,8].forEach((w,i)=>w0.getColumn(i+1).width=w);for(let k=0;k<names.length;k++)w0.getColumn(6+k).width=14;[12,12,18].forEach((w,k)=>w0.getColumn(6+names.length+k).width=w);
+  w0.addRow([...tblHdr,...names,'Tổng xuất','Tổng trả','NTP-ĐTC đang nhận','Dự trù thiết bị']);hdr(w0,4);
+  [6,12,26,22,8].forEach((w,i)=>w0.getColumn(i+1).width=w);for(let k=0;k<names.length;k++)w0.getColumn(6+k).width=14;[12,12,18,14].forEach((w,k)=>w0.getColumn(6+names.length+k).width=w);
   const rowsAll=[...CAT.map((c,idx)=>({ma:c[0],ten:c[1],grp:GRP(c[0]),dvt:c[2],idx})),...extraKeys.map(k=>{const [ten,dvt]=k.split('|');return {ma:'',ten,grp:'Vật tư khác',dvt,k};})]
     .map(r=>{const os=data.map(d=>r.k?d.rows.slice(nR).find(x=>x.ten+'|'+x.dvt===r.k)||{x:0,t:0}:d.rows[r.idx]);
-      const tx=os.reduce((a,o)=>a+o.x,0),tt=os.reduce((a,o)=>a+o.t,0);return {...r,vals:[...os.map(o=>o.x-o.t),tx,tt,0]};});
-  writeAgg(w0,5,rowsAll,names.length+3,{col:5+names.length+3,a:6+names.length,b:7+names.length});
+      const tx=os.reduce((a,o)=>a+o.x,0),tt=os.reduce((a,o)=>a+o.t,0),td=os.reduce((a,o)=>a+(o.d||0),0);return {...r,vals:[...os.map(o=>o.x-o.t),tx,tt,0,td]};});
+  writeAgg(w0,5,rowsAll,names.length+4,{col:5+names.length+3,a:6+names.length,b:7+names.length});
   w0.views=[{state:'frozen',xSplit:5,ySplit:4}];w0.getRow(4).height=42;
   // từng nhà thầu: bảng gom 23 mã + chi tiết theo phiếu (mỗi phiếu 1 nhóm)
   const ord=i=>{const k=CAT.findIndex(x=>x[0]===codeOf(i));return k<0?99:k;};
   const dkey=s=>String(s.head.ngay_xuat||s.head.ngay||'');
   names.forEach((g,gi)=>{
-    const ws=wb.addWorksheet(shName(g));[6,12,28,22,8,13,13,20].forEach((w,i)=>ws.getColumn(i+1).width=w);
-    title(ws,'THỐNG KÊ XUẤT / TRẢ VẬT TƯ THIẾT BỊ · '+g.toUpperCase(),8);ws.addRow([]);
-    ws.addRow([...tblHdr,'Tổng xuất','Tổng trả','Đang nhận (xuất − trả)']);hdr(ws,4);ws.getRow(4).height=34;
-    const rr=data[gi].rows.map(o=>({ma:o.ma,ten:o.ten,grp:o.grp,dvt:o.dvt,vals:[o.x,o.t,0]}));
-    let r=writeAgg(ws,5,rr,3,{col:8,a:6,b:7})+3;
+    const ws=wb.addWorksheet(shName(g));[6,12,28,22,8,13,13,20,14,22].forEach((w,i)=>ws.getColumn(i+1).width=w);
+    title(ws,'THỐNG KÊ XUẤT / TRẢ / DỰ TRÙ VẬT TƯ THIẾT BỊ · '+g.toUpperCase(),9);ws.addRow([]);
+    ws.addRow([...tblHdr,'Tổng xuất','Tổng trả','Đang nhận (xuất − trả)','Dự trù thiết bị']);hdr(ws,4);ws.getRow(4).height=34;
+    const rr=data[gi].rows.map(o=>({ma:o.ma,ten:o.ten,grp:o.grp,dvt:o.dvt,vals:[o.x,o.t,0,o.d]}));
+    let r=writeAgg(ws,5,rr,4,{col:8,a:6,b:7})+3;
     ws.getCell(r-1,1).value='CHI TIẾT THEO PHIẾU (bấm dấu +/- bên trái để mở/thu gọn từng phiếu)';ws.getCell(r-1,1).font={bold:true,name:'Times New Roman',color:{argb:NAVY}};
-    ['Ngày','Mã phiếu','Loại phiếu','Mã TB','Tên thiết bị','ĐVT','SL xuất','SL trả'].forEach((h,c)=>ws.getCell(r,c+1).value=h);hdr(ws,r);ws.getRow(r).height=24;
+    ['Ngày','Mã phiếu','Loại phiếu','Mã TB','Tên thiết bị','ĐVT','SL xuất','SL trả','SL dự trù','Vị trí / Zone'].forEach((h,c)=>ws.getCell(r,c+1).value=h);hdr(ws,r);ws.getRow(r).height=24;
     groups[g].slice().sort((a,b)=>dkey(a).localeCompare(dkey(b))||a.code.localeCompare(b.code)).forEach(s=>{
       const sl=s.items.slice().sort((a,b)=>ord(a)-ord(b)).filter(i=>num(i.sl));r++;const hr=r,f=r+1,l=r+sl.length;
-      [fmtD(dkey(s)),s.code,FORMS[s.type].name,'',sl.length+' dòng thiết bị','',null,null].forEach((v,c)=>cell(ws,hr,c+1,v,{bold:true,fill:GFILL,left:c===4}));
-      ws.getCell(hr,7).value={formula:sl.length?`SUM(G${f}:G${l})`:'0'};ws.getCell(hr,8).value={formula:sl.length?`SUM(H${f}:H${l})`:'0'};
-      sl.forEach(i=>{r++;ws.getRow(r).outlineLevel=1;const v=num(i.sl);[fmtD(dkey(s)),s.code,FORMS[s.type].name,codeOf(i)||i.ma||'',i.ten,i.dvt,s.type==='A'?v:null,s.type==='T'?v:null].forEach((x,c)=>cell(ws,r,c+1,x,{left:c===4}));});
+      [fmtD(dkey(s)),s.code,FORMS[s.type].name,'',sl.length+' dòng thiết bị','',null,null,null,s.head.zone||''].forEach((v,c)=>cell(ws,hr,c+1,v,{bold:true,fill:GFILL,left:c===4||c===9}));
+      ws.getCell(hr,7).value={formula:sl.length?`SUM(G${f}:G${l})`:'0'};ws.getCell(hr,8).value={formula:sl.length?`SUM(H${f}:H${l})`:'0'};ws.getCell(hr,9).value={formula:sl.length?`SUM(I${f}:I${l})`:'0'};
+      sl.forEach(i=>{r++;ws.getRow(r).outlineLevel=1;const v=num(i.sl);[fmtD(dkey(s)),s.code,FORMS[s.type].name,codeOf(i)||i.ma||'',i.ten,i.dvt,s.type==='A'?v:null,s.type==='T'?v:null,s.type==='D'?v:null,s.head.zone||''].forEach((x,c)=>cell(ws,r,c+1,x,{left:c===4||c===9}));});
     });
     ws.views=[{state:'frozen',ySplit:4}];
   });
@@ -651,10 +654,10 @@ async function exportXlsx(list,opt){
     ws.views=[{state:'frozen',ySplit:4}];}
   // 2. Danh sách phiếu (mọi trạng thái)
   const w1=wb.addWorksheet('Danh sach phieu');
-  w1.addRow(['Mã phiếu','Loại phiếu','Ngày lập','Số phiếu','Hạng mục','Đội / Đơn vị','Trạng thái','Số dòng thiết bị','Người lập','Giám sát phụ trách','Lý do từ chối']);hdr(w1,1);
+  w1.addRow(['Mã phiếu','Loại phiếu','Ngày lập','Số phiếu','Hạng mục','Đội / Đơn vị','Trạng thái','Số dòng thiết bị','Người lập','Giám sát phụ trách','Lý do từ chối','Vị trí / Zone (dự trù)']);hdr(w1,1);
   list.slice().sort((a,b)=>(a.type==='N')-(b.type==='N')||who(a).localeCompare(who(b),'vi')||String(a.head.ngay||'').localeCompare(String(b.head.ngay||''))).forEach(s=>{const sg=x=>x&&x.sig?`${x.name} (${fmtDT(x.at)})`:'';const gp=s.steps.find(x=>x.role==='gs_phu_trach');
-    w1.addRow([s.code,FORMS[s.type].name,fmtD(s.head.ngay),s.head.so||'',s.head.hang_muc||'',who(s),stt(s),s.items.length,sg(s.steps[0]),sg(gp),s.rejectReason||'']);});
-  [20,30,12,12,18,24,22,12,28,28,28].forEach((w,i)=>w1.getColumn(i+1).width=w);box(w1,2);w1.views=[{state:'frozen',ySplit:1}];
+    w1.addRow([s.code,FORMS[s.type].name,fmtD(s.head.ngay),s.head.so||'',s.head.hang_muc||'',who(s),stt(s),s.items.length,sg(s.steps[0]),sg(gp),s.rejectReason||'',s.head.zone||'']);});
+  [20,30,12,12,18,24,22,12,28,28,28,22].forEach((w,i)=>w1.getColumn(i+1).width=w);box(w1,2);w1.views=[{state:'frozen',ySplit:1}];
   const buf=await wb.xlsx.writeBuffer();
   const fname=(opt&&opt.name)||('Thong-ke-xuat-tra-kho-HH12_'+today());
   await deliverFile(fname+'.xlsx',new Blob([buf],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}),'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',opt&&opt.mode);
@@ -829,7 +832,7 @@ async function viewAdmin(){
    <section class="panel"><h2>Thêm người ký</h2><div class="grid"><label class="f">Email Google<input id="ne" type="email" placeholder="ten@gmail.com" autocomplete="off"></label><label class="f">Họ tên<input id="nn" placeholder="Nguyễn Văn A"></label></div>${roleBox('__new',[])}<div class="row"><button class="btn blue" id="add">Thêm</button><span id="msg" class="msg" hidden></span></div></section>
    <section class="panel"><h2>Danh sách (${list.length})</h2>${list.map(a=>`<div class="card" style="padding:14px"><div class="row" style="justify-content:space-between"><div><b>${esc(a.name||'')}</b><br><small class="hint">${esc(a.email)}${a.admin?' · quản trị':''}</small></div>${a.email===ADMIN?'':`<button class="btn sm" data-del="${esc(a.email)}">Xoá</button>`}</div>${roleBox(a.email,a.roles||[])}</div>`).join('')}</section>`;
   const setMsg=(t,k)=>{$('msg').hidden=!t;$('msg').textContent=t||'';$('msg').className='msg '+(k||'');};
-  $('syncSeq').onclick=async()=>{try{const all=await DB.listSlips();const cnt={};all.forEach(s=>{const k=slugOf(s.head.doi||s.head.don_vi,s.type==='N');cnt[k]=(cnt[k]||0)+1;});const out=[];for(const k of Object.keys(cnt)){const n=await DB.syncSeq(k,cnt[k]);out.push(k+': '+n);}$('syncMsg').textContent=out.length?'Đã đồng bộ — '+out.join(' · '):'Chưa có phiếu.';}catch(e){$('syncMsg').textContent='Lỗi: '+(e.code||e.message);}};
+  $('syncSeq').onclick=async()=>{try{const all=await DB.listSlips();const cnt={};all.forEach(s=>{const k=slugOf(s.head.doi||s.head.don_vi,s.type==='N',s.type==='D');cnt[k]=(cnt[k]||0)+1;});const out=[];for(const k of Object.keys(cnt)){const n=await DB.syncSeq(k,cnt[k]);out.push(k+': '+n);}$('syncMsg').textContent=out.length?'Đã đồng bộ — '+out.join(' · '):'Chưa có phiếu.';}catch(e){$('syncMsg').textContent='Lỗi: '+(e.code||e.message);}};
   const imgToSig=file=>new Promise((res,rej)=>{const fr=new FileReader();fr.onerror=()=>rej(new Error('không đọc được ảnh'));fr.onload=()=>{const im=new Image();im.onerror=()=>rej(new Error('ảnh không hợp lệ'));im.onload=()=>{
     const k=Math.min(1,420/im.width),w=Math.max(1,Math.round(im.width*k)),h=Math.max(1,Math.round(im.height*k));const cv=document.createElement('canvas');cv.width=w;cv.height=h;const cx=cv.getContext('2d');cx.drawImage(im,0,0,w,h);
     const d=cx.getImageData(0,0,w,h),a=d.data;let x0=w,y0=h,x1=0,y1=0;
@@ -867,19 +870,19 @@ async function viewStats(){
     const G={};
     all.filter(s=>s.type!=='N'&&(incl?s.status!=='rejected':s.status==='done')).forEach(s=>{
       const dt=s.head.ngay_xuat||s.head.ngay||'';if((d1&&dt<d1)||(d2&&dt>d2))return;
-      const g=who(s)||'Chưa rõ';const o=G[g]=G[g]||{name:g,x:0,t:0,items:{},slips:[]};o.slips.push(s);
-      s.items.forEach(i=>{const sl=num(i.sl);if(!sl)return;const k=(i.ma||'')+'|'+i.ten+'|'+i.dvt;const it=o.items[k]=o.items[k]||{ma:i.ma||'',ten:i.ten,dvt:i.dvt,x:0,t:0};
-        if(s.type==='A'){it.x+=sl;o.x+=sl;}else{it.t+=sl;o.t+=sl;}});
+      const g=who(s)||'Chưa rõ';const o=G[g]=G[g]||{name:g,x:0,t:0,d:0,items:{},slips:[]};o.slips.push(s);
+      s.items.forEach(i=>{const sl=num(i.sl);if(!sl)return;const k=(i.ma||'')+'|'+i.ten+'|'+i.dvt;const it=o.items[k]=o.items[k]||{ma:i.ma||'',ten:i.ten,dvt:i.dvt,x:0,t:0,d:0};
+        if(s.type==='A'){it.x+=sl;o.x+=sl;}else if(s.type==='D'){it.d+=sl;o.d+=sl;}else{it.t+=sl;o.t+=sl;}});
     });
     return Object.values(G).sort((a,b)=>a.name.localeCompare(b.name,'vi'));
   };
   const draw=()=>{
     const gs=calc().filter(g=>!q||g.name.toLowerCase().includes(q.toLowerCase()));
-    const tx=gs.reduce((a,g)=>a+g.x,0),tt=gs.reduce((a,g)=>a+g.t,0);
-    $('stsum').innerHTML=`<div><b>${gs.length}</b><span>Nhà thầu</span></div><div><b>${fmtN(tx)}</b><span>Tổng xuất</span></div><div><b>${fmtN(tt)}</b><span>Tổng trả</span></div><div><b>${fmtN(tx-tt)}</b><span>Còn tại đội</span></div>`;
+    const tx=gs.reduce((a,g)=>a+g.x,0),tt=gs.reduce((a,g)=>a+g.t,0),td=gs.reduce((a,g)=>a+g.d,0);
+    $('stsum').innerHTML=`<div><b>${gs.length}</b><span>Nhà thầu</span></div><div><b>${fmtN(tx)}</b><span>Tổng xuất</span></div><div><b>${fmtN(tt)}</b><span>Tổng trả</span></div><div><b>${fmtN(tx-tt)}</b><span>Còn tại đội</span></div><div><b>${fmtN(td)}</b><span>Dự trù</span></div>`;
     $('stlist').innerHTML=gs.map(g=>{const on=open===g.name;const ci=r=>{let k=CAT.findIndex(c=>c[0]===r.ma);if(k<0){const m=String(r.ten).match(/\(([A-Z0-9-]+)\)\s*$/);if(m)k=CAT.findIndex(c=>c[0]===m[1]);}return k<0?99:k;};const rows=Object.values(g.items).sort((a,b)=>ci(a)-ci(b)||a.ten.localeCompare(b.ten,'vi'));
-      return `<div class="panel" style="padding:0"><button class="stbtn" data-g="${esc(g.name)}" aria-expanded="${on}" style="all:unset;box-sizing:border-box;display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between;width:100%;padding:14px 16px;cursor:pointer"><b style="font-size:17px;color:var(--navy)">${esc(g.name)}</b><span><span class="badge b-done">Xuất ${fmtN(g.x)}</span> <span class="badge b-pending">Trả ${fmtN(g.t)}</span> <span class="badge ${g.x-g.t>0?'b-rejected':'b-done'}">Còn ${fmtN(g.x-g.t)}</span></span></button>
-      ${on?`<div class="scroll" style="padding:0 16px 14px"><table class="t"><thead><tr><th>Mã</th><th>Thiết bị</th><th>ĐVT</th><th>Xuất</th><th>Trả</th><th>Còn tại đội</th></tr></thead><tbody>${rows.map(r=>`<tr><td>${esc(r.ma)}</td><td>${esc(r.ten)}</td><td>${esc(r.dvt)}</td><td>${fmtN(r.x)}</td><td>${fmtN(r.t)}</td><td><b>${fmtN(r.x-r.t)}</b></td></tr>`).join('')}</tbody></table><p class="hint">${g.slips.length} phiếu: ${g.slips.map(s=>`<a href="#/phieu/${s.id}">${esc(s.code)}</a>`).join(', ')}</p></div>`:''}</div>`;}).join('')||'<p class="hint">Chưa có phiếu nào đã ký xong.</p>';
+      return `<div class="panel" style="padding:0"><button class="stbtn" data-g="${esc(g.name)}" aria-expanded="${on}" style="all:unset;box-sizing:border-box;display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between;width:100%;padding:14px 16px;cursor:pointer"><b style="font-size:17px;color:var(--navy)">${esc(g.name)}</b><span><span class="badge b-done">Xuất ${fmtN(g.x)}</span> <span class="badge b-pending">Trả ${fmtN(g.t)}</span> <span class="badge ${g.x-g.t>0?'b-rejected':'b-done'}">Còn ${fmtN(g.x-g.t)}</span>${g.d?` <span class="badge b-pending">Dự trù ${fmtN(g.d)}</span>`:''}</span></button>
+      ${on?`<div class="scroll" style="padding:0 16px 14px"><table class="t"><thead><tr><th>Mã</th><th>Thiết bị</th><th>ĐVT</th><th>Xuất</th><th>Trả</th><th>Còn tại đội</th><th>Dự trù</th></tr></thead><tbody>${rows.map(r=>`<tr><td>${esc(r.ma)}</td><td>${esc(r.ten)}</td><td>${esc(r.dvt)}</td><td>${fmtN(r.x)}</td><td>${fmtN(r.t)}</td><td><b>${fmtN(r.x-r.t)}</b></td><td>${r.d?fmtN(r.d):''}</td></tr>`).join('')}</tbody></table><p class="hint">${g.slips.length} phiếu: ${g.slips.map(s=>`<a href="#/phieu/${s.id}">${esc(s.code)}</a>`).join(', ')}</p></div>`:''}</div>`;}).join('')||'<p class="hint">Chưa có phiếu nào đã ký xong.</p>';
     document.querySelectorAll('.stbtn').forEach(b=>b.onclick=()=>{open=open===b.dataset.g?null:b.dataset.g;draw();});
     $('stx').onclick=()=>exportXlsx(all.filter(s=>(incl?s.status!=='rejected':s.status==='done')));
   };
@@ -887,7 +890,7 @@ async function viewStats(){
    <div class="row"><input id="stq" placeholder="Tìm nhà thầu" style="max-width:220px" aria-label="Tìm nhà thầu"><label class="hint">Từ <input type="date" id="std1" style="width:auto"></label><label class="hint">Đến <input type="date" id="std2" style="width:auto"></label>
    <label class="row" style="gap:6px"><input type="checkbox" id="stin" style="width:18px;height:18px;min-height:0"> Gồm phiếu chưa ký xong</label><button class="btn blue sm" id="stx" style="margin-left:auto">Xuất Excel theo nhà thầu</button></div>
    <div class="stats" id="stsum" style="margin:12px 0"></div><div id="stlist" style="display:flex;flex-direction:column;gap:10px"></div>
-   <p class="hint">Xuất = phiếu xuất kho, Trả = phiếu trả kho (không tính phiếu NCC). Còn tại đội = xuất trừ trả, cộng theo từng thiết bị. Bấm vào tên nhà thầu để xem chi tiết.</p>`;
+   <p class="hint">Xuất = phiếu xuất kho, Trả = phiếu trả kho, Dự trù = phiếu dự trù thiết bị (tính riêng, không trừ vào Còn tại đội). Không tính phiếu NCC. Còn tại đội = xuất trừ trả, cộng theo từng thiết bị. Bấm vào tên nhà thầu để xem chi tiết.</p>`;
   $('stq').oninput=e=>{q=e.target.value;draw();};$('std1').onchange=e=>{d1=e.target.value;draw();};$('std2').onchange=e=>{d2=e.target.value;draw();};$('stin').onchange=e=>{incl=e.target.checked;draw();};
   draw();
 }
