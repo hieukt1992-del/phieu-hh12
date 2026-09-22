@@ -569,7 +569,12 @@ function viewCreate(mode){
         pz.then(()=>{});
       }else{
         toast('Đã gửi phiếu, chờ '+steps[fm].label+' ký.');
-        const pz=modal(`<h3>Đã gửi phiếu ${esc(slip.code)}</h3><p class="hint" style="color:var(--ink)">Bấm nút dưới để nhắn Zalo cho ${esc(steps[fm].label)} biết và ký duyệt (tin nhắn có sẵn link phiếu).</p><div class="row"><button class="btn red" id="zAp">Gửi Zalo cho ${esc(steps[fm].label)}</button><button class="btn" data-m="x">Để sau</button></div>`);$('zAp').onclick=()=>zaloApprover(sNew);pz.then(()=>{});
+        let built=null;const building=buildPdf(sNew).then(r=>{built=r;}).catch(e=>{toast('Không tạo được PDF: '+(e.message||'lỗi'));});
+        const pz=modal(`<h3>Đã gửi phiếu ${esc(slip.code)}</h3><p class="hint" style="color:var(--ink)">Phiếu đang chờ ${esc(steps[fm].label)} ký duyệt. Bạn có thể gửi ngay file PDF (bản đang chờ ký) qua Zalo, hoặc nhắn Zalo báo ${esc(steps[fm].label)} vào ký.</p><div class="row"><button class="btn red" id="zPdf">Gửi Zalo (PDF)</button><button class="btn blue" id="pDl">Tải PDF</button></div><div class="row"><button class="btn line" id="zAp">Nhắn Zalo cho ${esc(steps[fm].label)} để ký</button><button class="btn" data-m="x">Để sau</button></div>`);
+        $('zPdf').onclick=async()=>{await building;if(built)deliverFile(built.name,built.blob,'application/pdf','zalo');else exportPdf(sNew,'zalo');};
+        $('pDl').onclick=async()=>{await building;if(built)deliverFile(built.name,built.blob,'application/pdf','dl');else exportPdf(sNew,'dl');};
+        $('zAp').onclick=()=>zaloApprover(sNew);
+        pz.then(()=>{});
       }
     }catch(e){setMsg('Không gửi được phiếu: '+(e.code||e.message||'lỗi'),'err');$('submit').disabled=false;}
   };
