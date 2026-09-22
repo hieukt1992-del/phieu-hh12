@@ -513,7 +513,7 @@ function viewCreate(mode){
   const itemHtml=c=>{const x=st().sel[c[0]]||{},on=!!x.on;
     return `<div class="item ${on?'on':''}" data-code="${c[0]}"><label class="pick" for="c-${c[0]}"><input type="checkbox" id="c-${c[0]}" ${on?'checked':''}><span class="code">${esc(c[0])}</span><span class="nm">${esc(c[1])}</span><span class="u">${esc(c[2])}</span></label><input class="qty" id="q-${c[0]}" inputmode="decimal" placeholder="SL" enterkeyhint="done" aria-label="Số lượng ${esc(c[1])}" value="${esc(x.sl||'')}"></div>`;};
   const renderList=()=>{const q=($('q').value||'').toLowerCase().trim();
-    const hm=st().head.hang_muc||'';const cat=ncc?CAT:(CATS[hm]||[]);
+    const hm=st().head.hang_muc||'';const cat=ncc?CAT_KETCAU:(CATS[hm]||[]);
     const items=cat.filter(c=>!q||(c[0]+' '+c[1]+' '+c[3]).toLowerCase().includes(q));
     const groups=[...new Set(items.map(c=>c[3]))];
     $('eqlist').innerHTML=groups.map(g=>`<div><h3 class="g" style="margin-bottom:6px">${esc(g)}</h3><div class="list">${items.filter(c=>c[3]===g).map(itemHtml).join('')}</div></div>`).join('')||(cat.length?'<p class="hint">Không có thiết bị khớp. Thêm ở mục thiết bị khác bên dưới.</p>':`<p class="hint">${hm?'Chưa có danh mục thiết bị cho hạng mục "'+esc(hm)+'". Thêm ở mục thiết bị khác bên dưới.':'Chọn hạng mục ở mục 2 để hiện danh sách thiết bị.'}</p>`);};
