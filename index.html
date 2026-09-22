@@ -244,7 +244,7 @@ const CATS={'Kết cấu':CAT_KETCAU,'Phụ kiện nhôm':CAT_NHOM,'Bao che leo'
 const CAT=Object.values(CATS).flat();
 const LISTS={DOI:['An Phát','BCH','Đỗ Đình Tán','ĐTC Khoa','ĐTC Liên Copha','ĐTC Trường','ĐTC Xây Lắp Copha','Đức Hiểu','Gia Phạm','Hải Đăng','Hòa Thùy','Hoàng Văn Tiến','Lê Văn Thuật','Minh Sơn','NTP Bảo Hưng','NTP Gia Phong','NTP Neo','NTP Quang Thái','NTP Trung Hải','Nguyễn Đức Kiên','Tổ Thép Lương','Tuấn Anh','UTCONTS'],HM:['Kết cấu','Phụ kiện nhôm','Bao che leo']};
 const HEADA=[['ngay','Ngày lập phiếu','date'],['so','Số phiếu','text'],['hang_muc','Hạng mục','HM'],['doi','Đội thi công (nhà thầu phụ)','DOI'],['ngay_dn','Ngày đề nghị','date'],['sdt','Số điện thoại Zalo của người đề nghị','tel']];
-const CHAINA=k=>[['nguoi_de_nghi','Người đề nghị'],['thu_kho','Thủ kho','skip'],['gs_tctc','GS. TCTC','skip'],['gs_phu_trach','GS. Phụ trách','skip'],['cht','Chỉ Huy Trưởng','skip']];
+const CHAINA=k=>[['nguoi_de_nghi','Người đề nghị'],['thu_kho','Thủ kho','skip'],['gs_tctc','GS. TCTC','skip'],['gs_phu_trach','GS. Phụ trách'],['cht','Chỉ Huy Trưởng','skip']];
 const FORMS={
  A:{code:'PX',file:'Phieu-xuat-kho',name:'Phiếu xuất kho',sub:'Đề nghị cung cấp vật tư kiêm phiếu xuất kho',title:'PHIẾU ĐỀ NGHỊ CUNG CẤP VẬT TƯ<br>KIÊM PHIẾU XUẤT KHO',dl:'Ngày xuất',per:13,layout:'A',
   head:[...HEADA,['ngay_xuat','Ngày xuất','date']],req:['ngay_dn','ngay_xuat','sdt'],chain:CHAINA()},
