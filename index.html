@@ -354,7 +354,7 @@ async function initFirebase(){
   const [A,Au,F]=await Promise.all([import(B+'firebase-app.js'),import(B+'firebase-auth.js'),import(B+'firebase-firestore.js')]);
   const app=A.initializeApp(FB_CONFIG),auth=Au.getAuth(app),fs=F.getFirestore(app);
   const D=p=>F.doc(fs,...p.split('/'));
-  const norm=d=>({...d,createdAt:d.createdAt&&d.createdAt.toMillis?d.createdAt.toMillis():(d.createdAt||Date.now())});
+  const norm=d=>({...d,createdAt:d.createdAt&&d.createdAt.toMillis?d.createdAt.toMillis():(d.createdAt||Date.now()),updatedAt:d.updatedAt&&d.updatedAt.toMillis?d.updatedAt.toMillis():(d.updatedAt||null)});
   return {
     onAuth:cb=>Au.onAuthStateChanged(auth,u=>cb(u?{uid:u.uid,email:(u.email||'').toLowerCase(),name:u.displayName||u.email,photo:u.photoURL||''}:null)),
     signIn:()=>Au.signInWithPopup(auth,new Au.GoogleAuthProvider()),
@@ -410,8 +410,8 @@ function initMock(){
 let DB=null,U=null,ME={member:false,roles:[],name:'',isAdmin:false,profile:null,allowed:null};
 let unwatch=null;
 const app=$('app');
-const KEEP_H=12;
-const mySlips=()=>{try{const all=JSON.parse(localStorage.getItem('mySlips')||'[]'),lim=Date.now()-KEEP_H*3600e3,a=all.filter(x=>new Date(x.at).getTime()>lim);if(a.length!==all.length)localStorage.setItem('mySlips',JSON.stringify(a));return a;}catch(e){return [];}};
+const KEEP_DONE_H=24;
+const mySlips=()=>{try{return JSON.parse(localStorage.getItem('mySlips')||'[]');}catch(e){return [];}};
 const remember=o=>{try{const a=mySlips().filter(x=>x.id!==o.id);a.unshift(o);localStorage.setItem('mySlips',JSON.stringify(a.slice(0,30)));}catch(e){}};
 const cur=s=>s.steps[s.currentStep];
 const badge=s=>`<span class="badge b-${s.status}">${s.status==='pending'&&cur(s)?'Chờ: '+esc(cur(s).label):STATUS[s.status]}</span>`;
@@ -465,14 +465,25 @@ const needLogin=(msg)=>{app.innerHTML=`<div class="panel"><h2>Cần đăng nhậ
 const needMember=()=>{app.innerHTML=`<div class="panel"><h2>Tài khoản chưa được cấp quyền ký</h2><p class="hint">Bạn đang đăng nhập bằng <b>${esc(U.email)}</b>. Gửi email này cho quản trị (${ADMIN}) để được thêm vào danh sách cấp duyệt và gán vai trò.</p></div>`;};
 
 /* ===================== Trang chủ ===================== */
-function viewHome(){
+async function viewHome(){
   const mine=mySlips();
-  const chain=k=>`<div class="chain">${FORMS[k].chain.map(([,l,m],i)=>`${i?'<i>→</i>':''}<span class="${i?(m==='auto'?'a':m==='skip'?'a':''):'g'}">${esc(l)}${m==='auto'?' (chữ ký mẫu)':m==='skip'?(l.startsWith('An ninh')?' (ký tại cổng)':' (không cần ký)'):''}</span>`).join('')}</div>`;
-  app.innerHTML=`<section class="hero"><div class="ey">Dự án HH12 Cổ Loa</div>
+  const heroHtml=`<section class="hero"><div class="ey">Dự án HH12 Cổ Loa</div>
    <h1>Phiếu điện tử <b>ký online</b></h1>
    <p>Xuất kho, trả kho, dự trù thiết bị. Ký trên điện thoại, xuất PDF và Excel.</p>
-   <div class="cta"><a class="btn red" href="#/tao">Lập phiếu →</a>${canNcc()?'<a class="btn line" href="#/ncc">Trả vật tư NCC</a>':'<a class="btn line" href="#/duyet">Phiếu chờ tôi ký</a>'}</div></section>
-   ${mine.length?`<section class="sec"><div class="eyebrow">Phiếu của bạn</div><h2>Theo dõi <b>phiếu</b></h2><p class="hint" style="margin:0 0 10px">Phiếu bạn vừa lập, tự ẩn khỏi danh sách sau 12 giờ.</p><div class="grid3">${mine.slice(0,6).map(m=>`<a class="slipcard" href="#/phieu/${m.id}"><span><b>${esc(m.code)}</b><br><small>${esc(m.doi||'')} · ${esc(fmtDT(m.at))}</small></span><span class="btn sm line">Mở</span></a>`).join('')}</div></section>`:''}`;
+   <div class="cta"><a class="btn red" href="#/tao">Lập phiếu →</a>${canNcc()?'<a class="btn line" href="#/ncc">Trả vật tư NCC</a>':'<a class="btn line" href="#/duyet">Phiếu chờ tôi ký</a>'}</div></section>`;
+  if(!mine.length){app.innerHTML=heroHtml;return;}
+  app.innerHTML=heroHtml+`<section class="sec" id="mineSec"><div class="eyebrow">Phiếu của bạn</div><h2>Theo dõi <b>phiếu</b></h2><p class="hint" style="margin:0 0 10px">Đang tải…</p></section>`;
+  const checked=mine.slice(0,20);
+  const results=await Promise.all(checked.map(async m=>{try{const s=await DB.getSlip(m.id);return {m,s};}catch(e){return {m,s:null};}}));
+  const sec=$('mineSec');if(!sec)return;
+  const now=Date.now();
+  const visible=results.filter(({s})=>{
+    if(!s)return false;
+    if(s.status==='pending')return true;
+    return (now-(s.updatedAt||0))<KEEP_DONE_H*3600e3;
+  }).map(({m})=>m);
+  if(!visible.length){sec.remove();return;}
+  sec.innerHTML=`<div class="eyebrow">Phiếu của bạn</div><h2>Theo dõi <b>phiếu</b></h2><p class="hint" style="margin:0 0 10px">Phiếu đang chờ duyệt luôn hiện ở đây; sau khi được duyệt/xử lý xong sẽ tự ẩn khỏi danh sách này sau 24 giờ — nhớ gửi Zalo cho các bên liên quan trước khi hết hạn.</p><div class="grid3">${visible.slice(0,6).map(m=>`<a class="slipcard" href="#/phieu/${m.id}"><span><b>${esc(m.code)}</b><br><small>${esc(m.doi||'')} · ${esc(fmtDT(m.at))}</small></span><span class="btn sm line">Mở</span></a>`).join('')}</div>`;
 }
 
 /* ===================== Tạo phiếu ===================== */
