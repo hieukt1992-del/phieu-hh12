@@ -240,7 +240,7 @@ const closeModal=()=>{$('modal').innerHTML='';};
 const CAT=[["RL-25","Ringlock 2.5m","cây"],["RL-15","Ringlock 1.5m","cây"],["RL-10","Ringlock 1.0m","cây"],["GN-12","Giằng ngang 1.2m","cây"],["GN-06","Giằng ngang 0.6m","cây"],["GX-1215","Giằng chéo 1.2x1.5m","cây"],["GX-0615","Giằng chéo 0.6x1.5m","cây"],["KD-38","Kích đế d38x600","Cái"],["KU-38","Kích U d38x600","Cái"],["KU-CS","Kích U console","Cái"],["KU-KD","Kích U kẹp đôi","Cái"],["TH100-4","Thép hộp 50x100x4m","cây"],["TH100-3","Thép hộp 50x100x3m","cây"],["TH100-2","Thép hộp 50x100x2m","cây"],["TH50-6","Thép hộp 50x50x6m","cây"],["TH50-4","Thép hộp 50x50x4m","cây"],["TH50-3","Thép hộp 50x50x3m","cây"],["TH50-2","Thép hộp 50x50x2m","cây"],["PK-TG","Tuýp gông hệ chống","cây"],["PK-CU","Cùm","cái"],["PK-GO","Gông","cái"],["PK-TY","Ty","m"],["PK-OB","Óc bát","con"]];
 const LISTS={DOI:['An Phát','BCH','Đỗ Đình Tán','ĐTC Khoa','ĐTC Liên Copha','ĐTC Trường','ĐTC Xây Lắp Copha','Đức Hiểu','Gia Phạm','Hải Đăng','Hòa Thùy','Hoàng Văn Tiến','Lê Văn Thuật','Minh Sơn','NTP Bảo Hưng','NTP Gia Phong','NTP Neo','NTP Quang Thái','NTP Trung Hải','Nguyễn Đức Kiên','Tổ Thép Lương','Tuấn Anh','UTCONTS'],HM:['Tháp khách sạn','Tháp văn phòng','Khối podium']};
 const HEADA=[['ngay','Ngày lập phiếu','date'],['so','Số phiếu','text'],['hang_muc','Hạng mục','HM'],['doi','Đội thi công (nhà thầu phụ)','DOI'],['ngay_dn','Ngày đề nghị','date'],['sdt','Số điện thoại Zalo của người đề nghị','tel']];
-const CHAINA=k=>[['nguoi_de_nghi','Người đề nghị'],['thu_kho','Thủ kho','skip'],['gs_tctc','GS. TCTC','skip'],['gs_phu_trach','GS. Phụ trách'],['cht','Chỉ Huy Trưởng','skip']];
+const CHAINA=k=>[['nguoi_de_nghi','Người đề nghị'],['thu_kho','Thủ kho','skip'],['gs_tctc','GS. TCTC','skip'],['gs_phu_trach','GS. Phụ trách','skip'],['cht','Chỉ Huy Trưởng','skip']];
 const FORMS={
  A:{code:'PX',file:'Phieu-xuat-kho',name:'Phiếu xuất kho',sub:'Đề nghị cung cấp vật tư kiêm phiếu xuất kho',title:'PHIẾU ĐỀ NGHỊ CUNG CẤP VẬT TƯ<br>KIÊM PHIẾU XUẤT KHO',dl:'Ngày xuất',per:13,layout:'A',
   head:[...HEADA,['ngay_xuat','Ngày xuất','date']],req:['ngay_dn','ngay_xuat','sdt'],chain:CHAINA()},
@@ -544,18 +544,28 @@ function viewCreate(mode){
     if(padObj.empty()){setMsg('Chưa có chữ ký. Ký trong khung phía trên.','err');$('padHost').scrollIntoView({block:'center'});return;}}
     $('submit').disabled=true;setMsg('Đang gửi phiếu…');
     try{
-      const steps=newSteps(kind),fm=firstManual(kind),sname=ncc?ME.name:C.signer.trim();steps[0]=ncc?{...steps[0],name:sname,email:U.email,sig:mySig,at:new Date().toISOString()}:{...steps[0],name:sname,sig:padObj.data(),at:new Date().toISOString(),guest:true};
+      const steps=newSteps(kind),fm=firstManual(kind),finished=fm<0,sname=ncc?ME.name:C.signer.trim();steps[0]=ncc?{...steps[0],name:sname,email:U.email,sig:mySig,at:new Date().toISOString()}:{...steps[0],name:sname,sig:padObj.data(),at:new Date().toISOString(),guest:true};
       const head={};Object.entries(s.head).forEach(([k,v])=>{if(!k.startsWith('_o_')&&typeof v==='string'&&v.trim())head[k]=v.trim();});
       const slug=slugOf(head.doi||head.don_vi,ncc,kind==='D');
       let seq=null;try{seq=await DB.nextSeq(slug);}catch(e){}
       const so=seq?'HH12_'+slug+'_'+String(seq).padStart(3,'0'):'HH12_'+slug+'_'+Date.now().toString(36).toUpperCase().slice(-5);
       head.so=so;
-      const slip={type:kind,code:so,head,items:items.map(i=>({...i,sl:String(i.sl)})),steps,currentStep:fm,status:'pending',createdByName:sname};
+      const slip={type:kind,code:so,head,items:items.map(i=>({...i,sl:String(i.sl)})),steps,currentStep:finished?steps.length:fm,status:finished?'done':'pending',createdByName:sname};
       const id=await DB.createSlip(slip);
       remember({id,code:slip.code,doi:head.doi||head.don_vi||'',at:new Date().toISOString()});
-      C=null;toast('Đã gửi phiếu, chờ '+steps[fm].label+' ký.');location.hash='#/phieu/'+id;
+      C=null;location.hash='#/phieu/'+id;
       const sNew={...slip,id};
-      const pz=modal(`<h3>Đã gửi phiếu ${esc(slip.code)}</h3><p class="hint" style="color:var(--ink)">Bấm nút dưới để nhắn Zalo cho GS. Phụ trách biết và ký duyệt (tin nhắn có sẵn link phiếu).</p><div class="row"><button class="btn red" id="zAp">Gửi Zalo cho GS. Phụ trách</button><button class="btn" data-m="x">Để sau</button></div>`);$('zAp').onclick=()=>zaloApprover(sNew);pz.then(()=>{});
+      if(finished){
+        toast('Đã hoàn tất phiếu '+slip.code+', đang tạo PDF…');
+        let built=null;const building=buildPdf(sNew).then(r=>{built=r;}).catch(e=>{toast('Không tạo được PDF: '+(e.message||'lỗi'));});
+        const pz=modal(`<h3>Phiếu ${esc(slip.code)} đã hoàn tất</h3><p class="hint" style="color:var(--ink)">Không cần chờ duyệt thêm. Gửi file PDF qua Zalo, hoặc tải về máy.</p><div class="row"><button class="btn red" id="zDone">Gửi Zalo (PDF)</button><button class="btn blue" id="pDl">Tải PDF</button><button class="btn" data-m="x">Đóng</button></div>`);
+        $('zDone').onclick=async()=>{await building;if(built)deliverFile(built.name,built.blob,'application/pdf','zalo');else exportPdf(sNew,'zalo');};
+        $('pDl').onclick=async()=>{await building;if(built)deliverFile(built.name,built.blob,'application/pdf','dl');else exportPdf(sNew,'dl');};
+        pz.then(()=>{});
+      }else{
+        toast('Đã gửi phiếu, chờ '+steps[fm].label+' ký.');
+        const pz=modal(`<h3>Đã gửi phiếu ${esc(slip.code)}</h3><p class="hint" style="color:var(--ink)">Bấm nút dưới để nhắn Zalo cho ${esc(steps[fm].label)} biết và ký duyệt (tin nhắn có sẵn link phiếu).</p><div class="row"><button class="btn red" id="zAp">Gửi Zalo cho ${esc(steps[fm].label)}</button><button class="btn" data-m="x">Để sau</button></div>`);$('zAp').onclick=()=>zaloApprover(sNew);pz.then(()=>{});
+      }
     }catch(e){setMsg('Không gửi được phiếu: '+(e.code||e.message||'lỗi'),'err');$('submit').disabled=false;}
   };
   all();
