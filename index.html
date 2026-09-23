@@ -814,6 +814,7 @@ async function doSign(s){
     const nextManual=steps.findIndex((x,i)=>i>0&&!x.sig&&!x.mode);
     const finished=nextManual<0;
     await DB.updateSlip(s.id,{steps,currentStep:finished?steps.length:nextManual,status:finished?'done':'pending'});
+    remember({id:s.id,code:s.code,doi:s.head.doi||s.head.don_vi||'',at:now});
     toast(finished?(missing.length?'Đã ký xong. Chưa có chữ ký mẫu của '+missing.join(', ')+' nên để trống (tải lên ở Quản trị).':'Đã ký xong, phiếu hoàn tất. Xuất PDF gửi Zalo cho giám sát in.'):'Đã ký, chuyển cấp tiếp theo.');
     if(finished&&s.head.sdt){const pz=modal(`<h3>Đã duyệt xong</h3><p class="hint" style="color:var(--ink)">Gửi link phiếu <b>${esc(s.code)}</b> cho người đề nghị qua Zalo số <b>${esc(s.head.sdt)}</b>. Bấm nút dưới: tin nhắn được sao chép sẵn và Zalo mở đúng số này, bạn chỉ cần dán và gửi.</p><div class="row"><button class="btn red" id="zSend">Gửi Zalo cho ${esc(s.head.sdt)}</button><button class="btn" data-m="x">Để sau</button></div>`);$('zSend').onclick=()=>openZalo(s);await pz;}
   }catch(e){toast('Không ký được: '+(e.code||e.message));}
@@ -828,7 +829,7 @@ async function doReject(s){
   const p=modal(`<h3>Từ chối phiếu</h3><label class="f">Lý do từ chối (bắt buộc)<textarea id="rsn" placeholder="Ví dụ: sai số lượng RL-25, cần lập lại"></textarea></label><div class="row"><button class="btn red" id="rejGo">Từ chối phiếu</button><button class="btn" data-m="no">Huỷ</button></div>`);
   $('rejGo').onclick=()=>{val=$('rsn').value.trim();if(!val){toast('Nhập lý do từ chối.');return;}$('modal').__done('yes');};
   if(await p!=='yes')return;
-  try{await DB.updateSlip(s.id,{status:'rejected',rejectReason:val,rejectedBy:ME.name});toast('Đã từ chối phiếu.');}
+  try{await DB.updateSlip(s.id,{status:'rejected',rejectReason:val,rejectedBy:ME.name});remember({id:s.id,code:s.code,doi:s.head.doi||s.head.don_vi||'',at:new Date().toISOString()});toast('Đã từ chối phiếu.');}
   catch(e){toast('Không từ chối được: '+(e.code||e.message));}
 }
 
