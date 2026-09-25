@@ -370,6 +370,7 @@ async function initFirebase(){
     saveProfile:(u,o)=>F.setDoc(D('profiles/'+u),o,{merge:true}),
     syncSeq:async(key,min)=>{const r=F.doc(fs,'counters',key);return F.runTransaction(fs,async t=>{const d=await t.get(r);const c=d.exists()?d.data().n:0;if(min>c)t.set(r,{n:min});return Math.max(c,min);});},
     nextSeq:async key=>{const r=F.doc(fs,'counters',key);return F.runTransaction(fs,async t=>{const d=await t.get(r);const n=(d.exists()?d.data().n:0)+1;t.set(r,{n});return n;});},
+    decSeqIfLatest:async(key,n)=>{const r=F.doc(fs,'counters',key);return F.runTransaction(fs,async t=>{const d=await t.get(r);const c=d.exists()?d.data().n:0;if(c===n&&n>0){t.set(r,{n:n-1});return n-1;}return c;});},
     createSlip:async o=>(await F.addDoc(F.collection(fs,'slips'),{...o,createdAt:F.serverTimestamp()})).id,
     getSlip:async id=>{const s=await F.getDoc(D('slips/'+id));return s.exists()?{id,...norm(s.data())}:null;},
     watchSlip:(id,cb,err)=>F.onSnapshot(D('slips/'+id),s=>cb(s.exists()?{id,...norm(s.data())}:null),err),
@@ -398,6 +399,7 @@ function initMock(){
     saveProfile:async(u,o)=>{const d=ld();d.profiles[u]={...(d.profiles[u]||{}),...o};sv(d);},
     syncSeq:async(key,min)=>{const d=ld();d.counters=d.counters||{};d.counters[key]=Math.max(d.counters[key]||0,min);sv(d);return d.counters[key];},
     nextSeq:async key=>{const d=ld();d.counters=d.counters||{};d.counters[key]=(d.counters[key]||0)+1;sv(d);return d.counters[key];},
+    decSeqIfLatest:async(key,n)=>{const d=ld();d.counters=d.counters||{};if((d.counters[key]||0)===n&&n>0){d.counters[key]=n-1;sv(d);}return d.counters[key]||0;},
     createSlip:async o=>{const d=ld(),id='s'+Math.random().toString(36).slice(2,10);d.slips[id]={...o,createdAt:Date.now()};sv(d);return id;},
     getSlip:async id=>{const s=ld().slips[id];return s?{id,...s}:null;},
     watchSlip:(id,cb)=>{const w={id,cb};ws.push(w);setTimeout(()=>push(id),0);return()=>{ws.splice(ws.indexOf(w),1);};},
@@ -822,7 +824,12 @@ async function doSign(s){
 async function delSlip(s,after){
   const r=await modal(`<h3>Xoá phiếu ${esc(s.code)}?</h3><p class="hint" style="color:var(--ink)">${esc(FORMS[s.type].name)} · ${esc(who(s))} · ${s.items.length} dòng. Xoá xong không khôi phục được, số liệu thống kê và file Excel sẽ tự cập nhật theo.</p><div class="row"><button class="btn red" data-m="yes">Xoá phiếu</button><button class="btn" data-m="no">Huỷ</button></div>`);
   if(r!=='yes')return;
-  try{await DB.deleteSlip(s.id);toast('Đã xoá phiếu '+s.code);if(after)after();else location.hash='#/tatca';}catch(e){toast('Không xoá được: '+(e.code||e.message));}
+  try{
+    await DB.deleteSlip(s.id);
+    const m=/^HH12_(.+)_(\d+)$/.exec(s.code||'');
+    if(m){const slug=m[1],n=parseInt(m[2],10);if(n>0){try{await DB.decSeqIfLatest(slug,n);}catch(e){}}}
+    toast('Đã xoá phiếu '+s.code);if(after)after();else location.hash='#/tatca';
+  }catch(e){toast('Không xoá được: '+(e.code||e.message));}
 }
 async function doReject(s){
   let val='';
