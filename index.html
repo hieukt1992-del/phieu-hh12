@@ -216,7 +216,10 @@ footer{padding:0 16px 28px;font-size:11.5px;letter-spacing:.3px}
 <div id="modal"></div><div id="toast" hidden></div>
 <div id="print" style="position:fixed;left:-12000px;top:0"></div>
 <script type="module">
-/* ===================== Cấu hình ===================== */
+/* ===================== Cấu hình (SỬA CÁC DÒNG NÀY KHI TẠO DỰ ÁN MỚI) ===================== */
+const PROJECT_CODE='HH12';
+const PROJECT_LABEL='DỰ ÁN KHÁCH SẠN, VĂN PHÒNG, BẢO TÀNG HH12 CỔ LOA';
+const NCC_CAT_KEY='Kết cấu';
 const ADMIN='hieukt1992@gmail.com';
 const MAIL_URL='';
 const APPROVER_ZALO='';
@@ -270,7 +273,7 @@ const newCode=k=>{const d=new Date();return FORMS[k].code+'-'+String(d.getFullYe
 /* ===================== Tờ giấy ===================== */
 function headerBlock(F,h,code){
   return `<div class="hdp"><div class="logo2"><b>NEWTECONS</b><i>Build on trust</i></div>
-   <div class="c">P/B/Dự án: DỰ ÁN KHÁCH SẠN, VĂN PHÒNG, BẢO TÀNG HH12 CỔ LOA</div>
+   <div class="c">P/B/Dự án: ${esc(PROJECT_LABEL)}</div>
    <div class="c">Ngày: ${esc(fmtD(h.ngay))}</div><div class="c">Số: ${esc(h.so||code||'')}</div>
    <div class="c t">${F.title}</div></div>`;
 }
@@ -526,7 +529,7 @@ function viewCreate(mode){
   const itemHtml=c=>{const x=st().sel[c[0]]||{},on=!!x.on;
     return `<div class="item ${on?'on':''}" data-code="${c[0]}"><label class="pick" for="c-${c[0]}"><input type="checkbox" id="c-${c[0]}" ${on?'checked':''}><span class="code">${esc(c[0])}</span><span class="nm">${esc(c[1])}</span><span class="u">${esc(c[2])}</span></label><input class="qty" id="q-${c[0]}" inputmode="decimal" placeholder="SL" enterkeyhint="done" aria-label="Số lượng ${esc(c[1])}" value="${esc(x.sl||'')}"></div>`;};
   const renderList=()=>{const q=($('q').value||'').toLowerCase().trim();
-    const hm=st().head.hang_muc||'';const cat=ncc?CAT_KETCAU:(CATS[hm]||[]);
+    const hm=st().head.hang_muc||'';const cat=ncc?(CATS[NCC_CAT_KEY]||[]):(CATS[hm]||[]);
     const items=cat.filter(c=>!q||(c[0]+' '+c[1]+' '+c[3]).toLowerCase().includes(q));
     const groups=[...new Set(items.map(c=>c[3]))];
     $('eqlist').innerHTML=groups.map(g=>`<div><h3 class="g" style="margin-bottom:6px">${esc(g)}</h3><div class="list">${items.filter(c=>c[3]===g).map(itemHtml).join('')}</div></div>`).join('')||(cat.length?'<p class="hint">Không có thiết bị khớp. Thêm ở mục thiết bị khác bên dưới.</p>':`<p class="hint">${hm?'Chưa có danh mục thiết bị cho hạng mục "'+esc(hm)+'". Thêm ở mục thiết bị khác bên dưới.':'Chọn hạng mục ở mục 2 để hiện danh sách thiết bị.'}</p>`);};
@@ -566,7 +569,7 @@ function viewCreate(mode){
       const head={};Object.entries(s.head).forEach(([k,v])=>{if(!k.startsWith('_o_')&&typeof v==='string'&&v.trim())head[k]=v.trim();});
       const slug=slugOf(head.doi||head.don_vi,ncc,kind==='D');
       let seq=null;try{seq=await DB.nextSeq(slug);}catch(e){}
-      const so=seq?'HH12_'+slug+'_'+String(seq).padStart(3,'0'):'HH12_'+slug+'_'+Date.now().toString(36).toUpperCase().slice(-5);
+      const so=seq?PROJECT_CODE+'_'+slug+'_'+String(seq).padStart(3,'0'):PROJECT_CODE+'_'+slug+'_'+Date.now().toString(36).toUpperCase().slice(-5);
       head.so=so;
       const slip={type:kind,code:so,head,items:items.map(i=>({...i,sl:String(i.sl)})),steps,currentStep:finished?steps.length:fm,status:finished?'done':'pending',createdByName:sname};
       const id=await DB.createSlip(slip);
@@ -743,7 +746,7 @@ async function exportXlsx(list,opt){
     w1.addRow([s.code,FORMS[s.type].name,fmtD(s.head.ngay),s.head.so||'',s.head.hang_muc||'',who(s),stt(s),s.items.length,sg(s.steps[0]),sg(gp),s.rejectReason||'',s.head.zone||'']);});
   [20,30,12,12,18,24,22,12,28,28,28,22].forEach((w,i)=>w1.getColumn(i+1).width=w);box(w1,2);w1.views=[{state:'frozen',ySplit:1}];
   const buf=await wb.xlsx.writeBuffer();
-  const fname=(opt&&opt.name)||('Thong-ke-xuat-tra-kho-HH12_'+today());
+  const fname=(opt&&opt.name)||('Thong-ke-xuat-tra-kho-'+PROJECT_CODE+'_'+today());
   await deliverFile(fname+'.xlsx',new Blob([buf],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}),'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',opt&&opt.mode);
 }
 
@@ -826,7 +829,7 @@ async function delSlip(s,after){
   if(r!=='yes')return;
   try{
     await DB.deleteSlip(s.id);
-    const m=/^HH12_(.+)_(\d+)$/.exec(s.code||'');
+    const m=new RegExp('^'+PROJECT_CODE.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+'_(.+)_(\\d+)$').exec(s.code||'');
     if(m){const slug=m[1],n=parseInt(m[2],10);if(n>0){try{await DB.decSeqIfLatest(slug,n);}catch(e){}}}
     toast('Đã xoá phiếu '+s.code);if(after)after();else location.hash='#/tatca';
   }catch(e){toast('Không xoá được: '+(e.code||e.message));}
