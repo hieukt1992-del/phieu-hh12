@@ -12,6 +12,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
 <style>
 :root{color-scheme:light;--navy:#0b2545;--blue:#245cad;--blue2:#e8f0fb;--red:#e5322d;--red2:#ff5a4f;--ink:#0f1b2d;--muted:#5b6b85;--line:#d8e1ee;--bg:#f6f9fd;--card:#fff;--ok:#1d7a4a;--warn:#b7791f;--bad:#b3261e}
 *{box-sizing:border-box}
@@ -246,6 +247,8 @@ const CAT_BAOCHE=[["SP-100","Sepatie 100mm","cái","Sepatie"],["SP-150","Sepatie
 const CATS={'Kết cấu':CAT_KETCAU,'Phụ kiện nhôm':CAT_NHOM,'Bao che leo':CAT_BAOCHE};
 const CAT=Object.values(CATS).flat();
 const LISTS={DOI:['An Phát','BCH','Đỗ Đình Tán','ĐTC Khoa','ĐTC Liên Copha','ĐTC Trường','ĐTC Xây Lắp Copha','Đức Hiểu','Gia Phạm','Hải Đăng','Hòa Thùy','Hoàng Văn Tiến','Lê Văn Thuật','Minh Sơn','NTP Bảo Hưng','NTP Gia Phong','NTP Neo','NTP Quang Thái','NTP Trung Hải','Nguyễn Đức Kiên','Tổ Thép Lương','Tuấn Anh','UTCONTS'],HM:['Kết cấu','Phụ kiện nhôm','Bao che leo']};
+/* Gợi ý loại thép hay gặp, chỉ để gõ nhanh (datalist) — không giới hạn, vẫn gõ tự do được */
+const STEEL_HINTS=['D10 CB300-V','D12 CB300-V','D14 CB300-V','D16 CB300-V','D18 CB300-V','D20 CB500-V','D22 CB500-V','D25 CB500-V','D28 CB500-V','D32 CB500-V','D6 CB240-T','D8 CB240-T','D10 CB240-T'];
 const HEADA=[['ngay','Ngày lập phiếu','date'],['so','Số phiếu','text'],['hang_muc','Hạng mục','HM'],['doi','Đội thi công (nhà thầu phụ)','DOI'],['ngay_dn','Ngày đề nghị','date'],['sdt','Số điện thoại Zalo của người đề nghị','tel']];
 const CHAINA=k=>[['nguoi_de_nghi','Người đề nghị'],['thu_kho','Thủ kho','skip'],['gs_tctc','GS. TCTC','skip'],['gs_phu_trach','GS. Phụ trách'],['cht','Chỉ Huy Trưởng','skip']];
 const FORMS={
@@ -379,13 +382,16 @@ async function initFirebase(){
     watchSlip:(id,cb,err)=>F.onSnapshot(D('slips/'+id),s=>cb(s.exists()?{id,...norm(s.data())}:null),err),
     listSlips:async()=>(await F.getDocs(F.query(F.collection(fs,'slips'),F.orderBy('createdAt','desc'),F.limit(300)))).docs.map(d=>({id:d.id,...norm(d.data())})),
     updateSlip:(id,o)=>F.updateDoc(D('slips/'+id),{...o,updatedAt:F.serverTimestamp()}),
-    deleteSlip:id=>F.deleteDoc(D('slips/'+id))
+    deleteSlip:id=>F.deleteDoc(D('slips/'+id)),
+    createSteelReceipt:async o=>(await F.addDoc(F.collection(fs,'steel_receipts'),{...o,createdAt:F.serverTimestamp()})).id,
+    watchSteelReceipts:(cb,err)=>F.onSnapshot(F.query(F.collection(fs,'steel_receipts'),F.orderBy('createdAt','desc'),F.limit(500)),s=>cb(s.docs.map(d=>({id:d.id,...norm(d.data())}))),err),
+    deleteSteelReceipt:id=>F.deleteDoc(D('steel_receipts/'+id))
   };
 }
 function initMock(){
   const K='mockdb',ld=()=>JSON.parse(localStorage.getItem(K)||'{"allowed":{},"profiles":{},"slips":{}}'),sv=d=>localStorage.setItem(K,JSON.stringify(d));
   const cur=()=>{try{return JSON.parse(localStorage.getItem('mockUser')||'null');}catch(e){return null;}};
-  const cbs=[],ws=[];const emit=()=>cbs.forEach(f=>f(cur()));window.__mockEmit=emit;
+  const cbs=[],ws=[],steelWs=[];const emit=()=>cbs.forEach(f=>f(cur()));window.__mockEmit=emit;
   const push=id=>ws.filter(w=>w.id===id).forEach(w=>w.cb(ld().slips[id]?{id,...ld().slips[id]}:null));
   return {
     onAuth:cb=>{cbs.push(cb);cb(cur());return()=>{};},
@@ -408,7 +414,10 @@ function initMock(){
     watchSlip:(id,cb)=>{const w={id,cb};ws.push(w);setTimeout(()=>push(id),0);return()=>{ws.splice(ws.indexOf(w),1);};},
     listSlips:async()=>Object.entries(ld().slips).map(([id,s])=>({id,...s})).sort((a,b)=>b.createdAt-a.createdAt),
     updateSlip:async(id,o)=>{const d=ld();d.slips[id]={...d.slips[id],...o,updatedAt:Date.now()};sv(d);push(id);},
-    deleteSlip:async id=>{const d=ld();delete d.slips[id];sv(d);push(id);}
+    deleteSlip:async id=>{const d=ld();delete d.slips[id];sv(d);push(id);},
+    createSteelReceipt:async o=>{const d=ld();d.steel=d.steel||{};const id='t'+Math.random().toString(36).slice(2,10);d.steel[id]={...o,createdAt:Date.now()};sv(d);steelWs.forEach(f=>f(Object.entries(ld().steel).map(([id,s])=>({id,...s})).sort((a,b)=>b.createdAt-a.createdAt)));return id;},
+    watchSteelReceipts:cb=>{steelWs.push(cb);setTimeout(()=>cb(Object.entries(ld().steel||{}).map(([id,s])=>({id,...s})).sort((a,b)=>b.createdAt-a.createdAt)),0);return()=>{const i=steelWs.indexOf(cb);if(i>=0)steelWs.splice(i,1);};},
+    deleteSteelReceipt:async id=>{const d=ld();delete (d.steel||{})[id];sv(d);steelWs.forEach(f=>f(Object.entries(ld().steel||{}).map(([id,s])=>({id,...s})).sort((a,b)=>b.createdAt-a.createdAt)));}
   };
 }
 /* ===================== Trạng thái chung ===================== */
@@ -442,7 +451,7 @@ const imgToSig=file=>new Promise((res,rej)=>{const fr=new FileReader();fr.onerro
   cx.putImageData(d,0,0);const pd=6,c2=document.createElement('canvas');c2.width=x1-x0+1+pd*2;c2.height=y1-y0+1+pd*2;c2.getContext('2d').drawImage(cv,x0,y0,x1-x0+1,y1-y0+1,pd,pd,x1-x0+1,y1-y0+1);res(c2.toDataURL('image/png'));};im.src=fr.result;};fr.readAsDataURL(file);});
 function renderChrome(){
   const r=(location.hash.replace(/^#\/?/,'').split('/')[0])||'';
-  const items=[['','Trang chủ'],['tao','Lập phiếu']];if(ME.member||ME.isAdmin)items.push(['thong-ke','Thống kê']);
+  const items=[['','Trang chủ'],['tao','Lập phiếu'],['thep-nhap','Nhập thép'],['thep-tonghop','Tổng hợp thép']];if(ME.member||ME.isAdmin)items.push(['thong-ke','Thống kê']);
   if(canNcc())items.push(['ncc','Trả NCC']);
   if(ME.member||ME.isAdmin){items.push(['duyet','Chờ ký'],['tatca','Tất cả phiếu'],['ho-so','Chữ ký']);}
   if(ME.isAdmin)items.push(['quan-tri','Quản trị']);
@@ -475,7 +484,7 @@ async function viewHome(){
   const heroHtml=`<section class="hero"><div class="ey">Dự án HH12 Cổ Loa</div>
    <h1>Phiếu điện tử <b>ký online</b></h1>
    <p>Xuất kho, trả kho, dự trù thiết bị. Ký trên điện thoại, xuất PDF và Excel.</p>
-   <div class="cta"><a class="btn red" href="#/tao">Lập phiếu →</a>${canNcc()?'<a class="btn line" href="#/ncc">Trả vật tư NCC</a>':'<a class="btn line" href="#/duyet">Phiếu chờ tôi ký</a>'}</div></section>`;
+   <div class="cta"><a class="btn red" href="#/tao">Lập phiếu →</a><a class="btn line" href="#/thep-nhap">Nộp thép nhận hàng</a>${canNcc()?'<a class="btn line" href="#/ncc">Trả vật tư NCC</a>':'<a class="btn line" href="#/duyet">Phiếu chờ tôi ký</a>'}</div></section>`;
   if(!mine.length){app.innerHTML=heroHtml;return;}
   app.innerHTML=heroHtml+`<section class="sec" id="mineSec"><div class="eyebrow">Phiếu của bạn</div><h2>Theo dõi <b>phiếu</b></h2><p class="hint" style="margin:0 0 10px">Đang tải…</p></section>`;
   const checked=mine.slice(0,20);
@@ -843,6 +852,149 @@ async function doReject(s){
   catch(e){toast('Không từ chối được: '+(e.code||e.message));}
 }
 
+/* ===================== Thép: nhập nhận hàng (scan → OCR tự động) ===================== */
+function compressImageFile(file,maxW,quality){
+  return new Promise((res,rej)=>{const fr=new FileReader();fr.onerror=()=>rej(new Error('không đọc được ảnh'));fr.onload=()=>{const im=new Image();im.onerror=()=>rej(new Error('ảnh không hợp lệ'));im.onload=()=>{
+    const k=Math.min(1,maxW/im.width),w=Math.max(1,Math.round(im.width*k)),h=Math.max(1,Math.round(im.height*k));
+    const cv=document.createElement('canvas');cv.width=w;cv.height=h;cv.getContext('2d').drawImage(im,0,0,w,h);
+    res(cv.toDataURL('image/jpeg',quality));};im.src=fr.result;};fr.readAsDataURL(file);});
+}
+async function shrinkToLimit(file,limitBytes){
+  let w=1400,q=0.72,out=null;
+  for(let i=0;i<6;i++){out=await compressImageFile(file,w,q);const bytes=Math.ceil(out.length*0.75);if(bytes<=limitBytes)break;if(q>0.4)q-=0.12;else w=Math.round(w*0.82);}
+  return out;
+}
+const steelNum=v=>{const n=parseFloat(String(v??'').replace(/\./g,'').replace(',','.'));return isNaN(n)?0:n;};
+const steelFmt=n=>{const r=Math.round((n||0)*1000)/1000,neg=r<0,abs=Math.abs(r);const[ip,dp]=String(abs).split('.');const ipf=ip.replace(/\B(?=(\d{3})+(?!\d))/g,'.');return (neg?'-':'')+ipf+(dp?','+dp:'');};
+function parseSteelOCR(text){
+  const lines=String(text||'').split(/\n+/).map(l=>l.trim()).filter(Boolean);const rows=[];
+  lines.forEach(line=>{
+    const mType=line.match(/D\s?\d{1,2}\s*CB\s?\d{3}[-\s]?[A-Za-z]?[,]?\s?[A-Za-zÀ-ỹ]{0,20}/i);if(!mType)return;
+    const loai=mType[0].replace(/\s+/g,' ').trim();
+    const rest=line.slice(mType.index+mType[0].length);
+    const loM=rest.match(/\d{3,4}[\-\/]\d{3,4}/);const soLo=loM?loM[0]:'';
+    const restNoLo=soLo?rest.replace(soLo,' '):rest;
+    const nums=(restNoLo.match(/\d{1,3}(?:[.,]\d{3})*(?:[.,]\d{1,3})?/g)||[]).map(s=>steelNum(s)).filter(n=>n>0);
+    rows.push({loai,so_cay:nums[0]?String(nums[0]):'',khoi_luong:nums[1]?String(nums[1]):'',so_lo:soLo,ghi_chu:''});
+  });
+  return rows;
+}
+async function ocrImage(dataUrl,onProgress){
+  if(!window.Tesseract)throw new Error('Chưa tải được thư viện đọc ảnh (OCR). Kiểm tra mạng rồi thử lại.');
+  const {data}=await window.Tesseract.recognize(dataUrl,'vie+eng',{logger:m=>{if(onProgress&&m.status==='recognizing text')onProgress(Math.round((m.progress||0)*100));}});
+  return data.text||'';
+}
+function steelRowsTable(rows){
+  const tr=rows.map((r,i)=>`<tr>
+     <td class="c">${i+1}</td>
+     <td><input data-f="loai" data-i="${i}" list="steelHints" value="${esc(r.loai)}" placeholder="VD: D20 CB500-V"></td>
+     <td><input data-f="so_cay" data-i="${i}" inputmode="numeric" value="${esc(r.so_cay)}" style="text-align:right"></td>
+     <td><input data-f="khoi_luong" data-i="${i}" inputmode="decimal" value="${esc(r.khoi_luong)}" style="text-align:right"></td>
+     <td><input data-f="so_lo" data-i="${i}" value="${esc(r.so_lo)}"></td>
+     <td><input data-f="ghi_chu" data-i="${i}" value="${esc(r.ghi_chu)}"></td>
+     <td><button type="button" class="btn sm" data-del="${i}" style="color:var(--bad);border-color:var(--bad)">Xoá</button></td></tr>`).join('');
+  return `<datalist id="steelHints">${STEEL_HINTS.map(h=>`<option value="${esc(h)}">`).join('')}</datalist>
+   <div class="scroll"><table class="t"><thead><tr><th>STT</th><th>Loại thép</th><th>Số cây</th><th>Khối lượng (kg)</th><th>Số lô</th><th>Ghi chú</th><th></th></tr></thead><tbody>${tr}</tbody></table></div>`;
+}
+function viewSteelUpload(){
+  let ROWS=[],imgData=null,busy=false;
+  const totCay=()=>ROWS.reduce((a,r)=>a+steelNum(r.so_cay),0),totKg=()=>ROWS.reduce((a,r)=>a+steelNum(r.khoi_luong),0);
+  const drawTot=()=>{$('totBox').innerHTML=`<div><b>${steelFmt(totCay())}</b><span>Tổng số cây</span></div><div><b>${steelFmt(totKg())}</b><span>Tổng khối lượng (kg)</span></div>`;};
+  const draw=()=>{
+    $('rowsBox').innerHTML=ROWS.length?steelRowsTable(ROWS):'<p class="hint">Chưa có dòng số liệu nào. Bấm "Đọc số liệu tự động" sau khi chọn ảnh, hoặc bấm "+ Thêm dòng" để nhập tay.</p>';
+    drawTot();
+    $('rowsBox').querySelectorAll('input').forEach(inp=>inp.oninput=()=>{ROWS[+inp.dataset.i][inp.dataset.f]=inp.value;if(inp.dataset.f==='so_cay'||inp.dataset.f==='khoi_luong')drawTot();});
+    $('rowsBox').querySelectorAll('[data-del]').forEach(b=>b.onclick=()=>{ROWS.splice(+b.dataset.del,1);draw();});
+  };
+  app.innerHTML=`<div class="eyebrow">Đội thi công tự nộp, không cần đăng nhập</div><h2 style="margin:4px 0 12px;font-size:26px;color:var(--navy)">Nhập thép nhận hàng</h2>
+   <p class="hint">Chụp/tải ảnh biên bản giao nhận hàng của nhà cung cấp, hệ thống tự đọc số liệu — bạn <b>bắt buộc kiểm tra và sửa lại</b> cho đúng trước khi lưu, vì máy đọc chữ có thể sai, nhất là số lô viết tay.</p>
+   <section class="panel"><h2><i>1</i>Thông tin nhận hàng</h2>
+    <div class="grid">
+     <label class="f" for="stDoi">Đội thi công (nhà thầu phụ) nhận thép<select id="stDoi"><option value="">— Chọn đội —</option>${LISTS.DOI.map(d=>`<option value="${esc(d)}">${esc(d)}</option>`).join('')}</select></label>
+     <label class="f" for="stNgay">Ngày nhận<input type="date" id="stNgay" value="${today()}"></label>
+     <label class="f" for="stNguoi">Người nộp (tên, SĐT — không bắt buộc)<input id="stNguoi" placeholder="Nguyễn Văn A, 09xx..."></label>
+    </div></section>
+   <section class="panel"><h2><i>2</i>Ảnh biên bản giao nhận</h2>
+    <label class="f" for="scanFile">Chụp ảnh hoặc chọn ảnh (JPG/PNG)<input type="file" id="scanFile" accept="image/*"></label>
+    <div id="scanPrev"></div>
+    <div class="row"><button type="button" class="btn blue sm" id="btnOcr" disabled>Đọc số liệu tự động (OCR)</button><span id="ocrMsg" class="hint"></span></div></section>
+   <section class="panel"><h2><i>3</i>Bảng số liệu thép — kiểm tra &amp; sửa lại</h2>
+    <div id="rowsBox"></div>
+    <div class="row"><button type="button" class="btn line sm" id="btnAddRow">+ Thêm dòng</button></div>
+    <div class="stats" id="totBox" style="margin:0;justify-content:flex-start;gap:28px"></div>
+    <label class="f" for="stGhi">Ghi chú thêm (không bắt buộc)<textarea id="stGhi" placeholder="VD: xe 89H-03105, thiếu 1 bó so với phiếu..."></textarea></label>
+    <div class="row"><button class="btn red" id="stSubmit">Lưu số liệu thép</button><span id="stMsg" class="msg" hidden></span></div></section>`;
+  draw();
+  const setMsg=(t,k)=>{$('stMsg').hidden=!t;$('stMsg').textContent=t||'';$('stMsg').className='msg '+(k||'');};
+  $('btnAddRow').onclick=()=>{ROWS.push({loai:'',so_cay:'',khoi_luong:'',so_lo:'',ghi_chu:''});draw();};
+  $('scanFile').onchange=async()=>{
+    const f=$('scanFile').files[0];if(!f)return;
+    $('btnOcr').disabled=true;$('ocrMsg').textContent='Đang nén ảnh…';
+    try{
+      imgData=await shrinkToLimit(f,650000);
+      $('scanPrev').innerHTML=`<div class="sigprev" style="max-width:280px"><img src="${imgData}" alt="Ảnh biên bản đã chọn"></div>`;
+      $('btnOcr').disabled=false;$('ocrMsg').textContent='Đã chọn ảnh. Bấm "Đọc số liệu tự động" để máy đọc bảng, hoặc tự nhập tay ở bước 3.';
+    }catch(e){$('ocrMsg').textContent='Không đọc được ảnh: '+e.message;}
+  };
+  $('btnOcr').onclick=async()=>{
+    if(!imgData||busy)return;busy=true;$('btnOcr').disabled=true;$('ocrMsg').textContent='Đang đọc ảnh… (0%)';
+    try{
+      const text=await ocrImage(imgData,p=>{$('ocrMsg').textContent=`Đang đọc ảnh… (${p}%)`;});
+      const parsed=parseSteelOCR(text);
+      if(parsed.length){ROWS=parsed;draw();$('ocrMsg').textContent=`Đã đọc được ${parsed.length} dòng — kiểm tra kỹ lại số liệu bên dưới trước khi lưu, máy có thể đọc sai số.`;}
+      else{$('ocrMsg').textContent='Không nhận diện được bảng số liệu từ ảnh này, hãy nhập tay ở bước 3.';}
+    }catch(e){$('ocrMsg').textContent='Lỗi đọc ảnh: '+e.message+' — hãy nhập tay ở bước 3.';}
+    busy=false;$('btnOcr').disabled=false;
+  };
+  $('stSubmit').onclick=async()=>{
+    const doi=$('stDoi').value,ngay=$('stNgay').value;
+    if(!doi){setMsg('Chọn đội thi công nhận thép.','err');$('stDoi').focus();return;}
+    if(!ngay){setMsg('Chọn ngày nhận.','err');return;}
+    const items=ROWS.filter(r=>r.loai.trim()||steelNum(r.so_cay)||steelNum(r.khoi_luong)).map(r=>({loai:r.loai.trim(),so_cay:steelNum(r.so_cay),khoi_luong:steelNum(r.khoi_luong),so_lo:r.so_lo.trim(),ghi_chu:r.ghi_chu.trim()}));
+    if(!items.length){setMsg('Chưa có dòng số liệu nào — đọc tự động hoặc nhập tay ít nhất 1 dòng.','err');return;}
+    $('stSubmit').disabled=true;setMsg('');
+    try{
+      await DB.createSteelReceipt({doi,ngay,nguoi_nop:$('stNguoi').value.trim(),items,tong_cay:items.reduce((a,r)=>a+r.so_cay,0),tong_kg:items.reduce((a,r)=>a+r.khoi_luong,0),ghi_chu:$('stGhi').value.trim(),scan:imgData||null});
+      toast('Đã lưu số liệu thép, tổng hợp cập nhật ngay.');
+      location.hash='#/thep-tonghop';
+    }catch(e){setMsg('Không lưu được: '+(e.code||e.message),'err');$('stSubmit').disabled=false;}
+  };
+}
+
+/* ===================== Thép: tổng hợp đã nhận theo đội ===================== */
+function viewSteelSummary(){
+  let all=[],fd='',d1='',d2='',q='',open=null;
+  const draw=()=>{
+    const l=all.filter(r=>(!fd||r.doi===fd)&&(!d1||r.ngay>=d1)&&(!d2||r.ngay<=d2)&&(!q||(r.doi+' '+(r.nguoi_nop||'')).toLowerCase().includes(q.toLowerCase())));
+    const tc=l.reduce((a,r)=>a+steelNum(r.tong_cay),0),tk=l.reduce((a,r)=>a+steelNum(r.tong_kg),0);
+    const G={};l.forEach(r=>{const o=G[r.doi]=G[r.doi]||{doi:r.doi,cay:0,kg:0,items:{},receipts:[]};o.cay+=steelNum(r.tong_cay);o.kg+=steelNum(r.tong_kg);o.receipts.push(r);
+      (r.items||[]).forEach(it=>{const k=it.loai||'(chưa rõ loại)';const x=o.items[k]=o.items[k]||{loai:k,cay:0,kg:0};x.cay+=steelNum(it.so_cay);x.kg+=steelNum(it.khoi_luong);});});
+    const teams=Object.values(G).sort((a,b)=>b.cay-a.cay||a.doi.localeCompare(b.doi,'vi'));
+    $('ssSum').innerHTML=`<div><b>${teams.length}</b><span>Đội đã nộp</span></div><div><b>${l.length}</b><span>Lượt nhận hàng</span></div><div><b>${steelFmt(tc)}</b><span>Tổng số cây</span></div><div><b>${steelFmt(tk)}</b><span>Tổng KL (kg)</span></div>`;
+    $('ssList').innerHTML=teams.map(g=>{
+      const on=open===g.doi,items=Object.values(g.items).sort((a,b)=>b.cay-a.cay);
+      return `<div class="panel" style="padding:0"><button class="stbtn" data-g="${esc(g.doi)}" style="all:unset;box-sizing:border-box;display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between;width:100%;padding:14px 16px;cursor:pointer">
+       <b style="font-size:17px;color:var(--navy)">${esc(g.doi)}</b>
+       <span><span class="badge b-done">${steelFmt(g.cay)} cây</span> <span class="badge b-pending">${steelFmt(g.kg)} kg</span> <span class="hint">· ${g.receipts.length} lượt</span></span></button>
+      ${on?`<div class="scroll" style="padding:0 16px 14px">
+       <table class="t"><thead><tr><th>Loại thép</th><th>Số cây</th><th>Khối lượng (kg)</th></tr></thead><tbody>${items.map(i=>`<tr><td>${esc(i.loai)}</td><td>${steelFmt(i.cay)}</td><td>${steelFmt(i.kg)}</td></tr>`).join('')}</tbody></table>
+       <h3 class="g" style="margin-top:12px">Từng lượt nhận</h3>
+       <div style="display:flex;flex-direction:column;gap:8px">${g.receipts.sort((a,b)=>String(b.ngay).localeCompare(String(a.ngay))).map(r=>`<div class="slipcard"><span><b>${esc(fmtD(r.ngay))}</b> · ${steelFmt(r.tong_cay)} cây · ${steelFmt(r.tong_kg)} kg${r.nguoi_nop?' · '+esc(r.nguoi_nop):''}${r.ghi_chu?'<br><small class="hint">'+esc(r.ghi_chu)+'</small>':''}</span>${r.scan?`<button type="button" class="btn sm line" data-img="${r.id}">Xem ảnh scan</button>`:''}${ME.isAdmin?`<button type="button" class="btn sm" data-delr="${r.id}" style="color:var(--bad);border-color:var(--bad)">Xoá</button>`:''}</div>`).join('')}</div>
+      </div>`:''}</div>`;
+    }).join('')||'<p class="hint">Chưa có đội nào nộp số liệu thép.</p>';
+    document.querySelectorAll('.stbtn').forEach(b=>b.onclick=()=>{open=open===b.dataset.g?null:b.dataset.g;draw();});
+    document.querySelectorAll('[data-img]').forEach(b=>b.onclick=()=>{const r=all.find(x=>x.id===b.dataset.img);if(r&&r.scan)modal(`<h3>Ảnh biên bản · ${esc(r.doi)} · ${esc(fmtD(r.ngay))}</h3><img src="${r.scan}" style="max-width:100%;border-radius:8px" alt="Ảnh biên bản giao nhận"><div class="row"><button class="btn" data-m="x">Đóng</button></div>`);});
+    document.querySelectorAll('[data-delr]').forEach(b=>b.onclick=async()=>{if(await modal('<h3>Xoá lượt nhận thép</h3><p>Xoá lượt nhận hàng này khỏi tổng hợp?</p><div class="row"><button class="btn red" data-m="y">Xoá</button><button class="btn" data-m="n">Huỷ</button></div>')==='y'){try{await DB.deleteSteelReceipt(b.dataset.delr);}catch(e){toast('Không xoá được: '+(e.code||e.message));}}});
+  };
+  app.innerHTML=`<div class="eyebrow">Cập nhật ngay khi có đội nộp số liệu mới</div><h2 style="margin:4px 0 12px;font-size:26px;color:var(--navy)">Tổng hợp thép đã nhận</h2>
+   <div class="row"><input id="ssq" placeholder="Tìm đội, người nộp" style="max-width:220px"><select id="ssd"><option value="">Mọi đội</option>${LISTS.DOI.map(d=>`<option value="${esc(d)}">${esc(d)}</option>`).join('')}</select><label class="hint">Từ <input type="date" id="ssd1" style="width:auto"></label><label class="hint">Đến <input type="date" id="ssd2" style="width:auto"></label><a class="btn blue sm" href="#/thep-nhap" style="margin-left:auto">+ Nộp số liệu thép mới</a></div>
+   <div class="stats" id="ssSum" style="margin:12px 0"></div><div id="ssList" style="display:flex;flex-direction:column;gap:10px"></div>
+   <p class="hint">Số liệu do đội thi công tự nộp kèm ảnh scan biên bản giao nhận, không cần đăng nhập. Bấm vào tên đội để xem chi tiết theo loại thép và từng lượt nhận, bấm "Xem ảnh scan" để đối chiếu với biên bản gốc khi cần.</p>`;
+  draw();
+  $('ssq').oninput=e=>{q=e.target.value;draw();};$('ssd').onchange=e=>{fd=e.target.value;draw();};$('ssd1').onchange=e=>{d1=e.target.value;draw();};$('ssd2').onchange=e=>{d2=e.target.value;draw();};
+  unwatch=DB.watchSteelReceipts(list=>{all=list;draw();},e=>{toast('Lỗi tải số liệu thép: '+(e.code||e.message));});
+}
+
 /* ===================== Danh sách duyệt, tất cả phiếu ===================== */
 async function loadSlips(){
   app.innerHTML='<div class="panel"><p class="hint">Đang tải danh sách phiếu…</p></div>';
@@ -997,6 +1149,8 @@ function route(){
   if(p==='duyet')return viewQueue();
   if(p==='tatca')return viewAll();
   if(p==='thong-ke')return viewStats();
+  if(p==='thep-nhap')return viewSteelUpload();
+  if(p==='thep-tonghop')return viewSteelSummary();
   if(p==='ho-so')return viewProfile();
   if(p==='quan-tri')return viewAdmin();
   viewHome();
