@@ -865,8 +865,8 @@ async function shrinkToLimit(file,limitBytes){
 }
 const steelNum=v=>{const n=parseFloat(String(v??'').replace(/\./g,'').replace(',','.'));return isNaN(n)?0:n;};
 const steelFmt=n=>{const r=Math.round((n||0)*1000)/1000,neg=r<0,abs=Math.abs(r);const[ip,dp]=String(abs).split('.');const ipf=ip.replace(/\B(?=(\d{3})+(?!\d))/g,'.');return (neg?'-':'')+ipf+(dp?','+dp:'');};
-// URL Worker (Cloudflare) làm proxy giấu API key Gemini — điền sau khi tạo Worker xong
-const OCR_WORKER_URL = 'https://hh12-ocr-thep.hieukt1992.workers.dev';
+// URL proxy giấu API key Gemini (Deno Deploy — Cloudflare Workers bị Google chặn theo vùng nên đã chuyển sang đây)
+const OCR_WORKER_URL = 'https://tiny-bumblebee-7019.hieukt1992-del.deno.net';
 async function ocrImageGemini(dataUrl){
   if(!OCR_WORKER_URL || OCR_WORKER_URL.indexOf('DÁN_URL')===0) throw new Error('Chưa cấu hình OCR_WORKER_URL.');
   const semi=dataUrl.indexOf(';'),comma=dataUrl.indexOf(',');
