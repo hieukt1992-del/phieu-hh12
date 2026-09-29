@@ -954,7 +954,7 @@ function viewSteelUpload(){
     if(!items.length){setMsg('Chưa có dòng số liệu nào — đọc tự động hoặc nhập tay ít nhất 1 dòng.','err');return;}
     $('stSubmit').disabled=true;setMsg('');
     try{
-      await DB.createSteelReceipt({doi,ngay,nguoi_nop:$('stNguoi').value.trim(),items,tong_cay:items.reduce((a,r)=>a+r.so_cay,0),tong_kg:items.reduce((a,r)=>a+r.khoi_luong,0),ghi_chu:$('stGhi').value.trim(),scan:imgData||null});
+      await DB.createSteelReceipt({doi,ngay,nguoi_nop:$('stNguoi').value.trim(),items,tong_cay:items.reduce((a,r)=>a+r.so_cay,0),tong_kg:items.reduce((a,r)=>a+r.khoi_luong,0),ghi_chu:$('stGhi').value.trim()});
       toast('Đã lưu số liệu thép, tổng hợp cập nhật ngay.');
       location.hash='#/thep-tonghop';
     }catch(e){setMsg('Không lưu được: '+(e.code||e.message),'err');$('stSubmit').disabled=false;}
