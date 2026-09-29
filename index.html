@@ -12,7 +12,6 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
 <style>
 :root{color-scheme:light;--navy:#0b2545;--blue:#245cad;--blue2:#e8f0fb;--red:#e5322d;--red2:#ff5a4f;--ink:#0f1b2d;--muted:#5b6b85;--line:#d8e1ee;--bg:#f6f9fd;--card:#fff;--ok:#1d7a4a;--warn:#b7791f;--bad:#b3261e}
 *{box-sizing:border-box}
@@ -866,23 +865,25 @@ async function shrinkToLimit(file,limitBytes){
 }
 const steelNum=v=>{const n=parseFloat(String(v??'').replace(/\./g,'').replace(',','.'));return isNaN(n)?0:n;};
 const steelFmt=n=>{const r=Math.round((n||0)*1000)/1000,neg=r<0,abs=Math.abs(r);const[ip,dp]=String(abs).split('.');const ipf=ip.replace(/\B(?=(\d{3})+(?!\d))/g,'.');return (neg?'-':'')+ipf+(dp?','+dp:'');};
-function parseSteelOCR(text){
-  const lines=String(text||'').split(/\n+/).map(l=>l.trim()).filter(Boolean);const rows=[];
-  lines.forEach(line=>{
-    const mType=line.match(/D\s?\d{1,2}\s*CB\s?\d{3}[-\s]?[A-Za-z]?[,]?\s?[A-Za-zÀ-ỹ]{0,20}/i);if(!mType)return;
-    const loai=mType[0].replace(/\s+/g,' ').trim();
-    const rest=line.slice(mType.index+mType[0].length);
-    const loM=rest.match(/\d{3,4}[\-\/]\d{3,4}/);const soLo=loM?loM[0]:'';
-    const restNoLo=soLo?rest.replace(soLo,' '):rest;
-    const nums=(restNoLo.match(/\d{1,3}(?:[.,]\d{3})*(?:[.,]\d{1,3})?/g)||[]).map(s=>steelNum(s)).filter(n=>n>0);
-    rows.push({loai,so_cay:nums[0]?String(nums[0]):'',khoi_luong:nums[1]?String(nums[1]):'',so_lo:soLo,ghi_chu:''});
-  });
-  return rows;
-}
-async function ocrImage(dataUrl,onProgress){
-  if(!window.Tesseract)throw new Error('Chưa tải được thư viện đọc ảnh (OCR). Kiểm tra mạng rồi thử lại.');
-  const {data}=await window.Tesseract.recognize(dataUrl,'vie+eng',{logger:m=>{if(onProgress&&m.status==='recognizing text')onProgress(Math.round((m.progress||0)*100));}});
-  return data.text||'';
+// URL Worker (Cloudflare) làm proxy giấu API key Gemini — điền sau khi tạo Worker xong
+const OCR_WORKER_URL = 'https://hh12-ocr-thep.hieukt1992.workers.dev';
+async function ocrImageGemini(dataUrl){
+  if(!OCR_WORKER_URL || OCR_WORKER_URL.indexOf('DÁN_URL')===0) throw new Error('Chưa cấu hình OCR_WORKER_URL.');
+  const semi=dataUrl.indexOf(';'),comma=dataUrl.indexOf(',');
+  const mimeType=dataUrl.slice(5,semi);
+  const base64=dataUrl.slice(comma+1);
+  const resp=await fetch(OCR_WORKER_URL,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({imageBase64:base64,mimeType})});
+  let json;
+  try{json=await resp.json();}catch(e){throw new Error('Máy chủ đọc ảnh trả về dữ liệu không hợp lệ.');}
+  if(!resp.ok||json.error) throw new Error(json.error||resp.statusText);
+  const rows=Array.isArray(json.rows)?json.rows:[];
+  return rows.map(r=>({
+    loai:String(r.loai||'').trim(),
+    so_cay:(r.so_cay!=null&&r.so_cay!=='')?String(r.so_cay):'',
+    khoi_luong:(r.khoi_luong!=null&&r.khoi_luong!=='')?String(r.khoi_luong):'',
+    so_lo:String(r.so_lo||'').trim(),
+    ghi_chu:String(r.ghi_chu||'').trim()
+  })).filter(r=>r.loai);
 }
 function steelRowsTable(rows){
   const tr=rows.map((r,i)=>`<tr>
@@ -937,10 +938,9 @@ function viewSteelUpload(){
     }catch(e){$('ocrMsg').textContent='Không đọc được ảnh: '+e.message;}
   };
   $('btnOcr').onclick=async()=>{
-    if(!imgData||busy)return;busy=true;$('btnOcr').disabled=true;$('ocrMsg').textContent='Đang đọc ảnh… (0%)';
+    if(!imgData||busy)return;busy=true;$('btnOcr').disabled=true;$('ocrMsg').textContent='Đang đọc ảnh bằng AI…';
     try{
-      const text=await ocrImage(imgData,p=>{$('ocrMsg').textContent=`Đang đọc ảnh… (${p}%)`;});
-      const parsed=parseSteelOCR(text);
+      const parsed=await ocrImageGemini(imgData);
       if(parsed.length){ROWS=parsed;draw();$('ocrMsg').textContent=`Đã đọc được ${parsed.length} dòng — kiểm tra kỹ lại số liệu bên dưới trước khi lưu, máy có thể đọc sai số.`;}
       else{$('ocrMsg').textContent='Không nhận diện được bảng số liệu từ ảnh này, hãy nhập tay ở bước 3.';}
     }catch(e){$('ocrMsg').textContent='Lỗi đọc ảnh: '+e.message+' — hãy nhập tay ở bước 3.';}
