@@ -245,6 +245,15 @@ pre.bb-gen{margin:0;white-space:pre-wrap;font:14px/1.55 "Times New Roman",Times,
 .bbs .bb-ib{flex:1;min-height:0;border:1px solid #bbb;display:flex;align-items:center;justify-content:center;background:#fafafa}
 .bbs .bb-ph img{max-width:100%;max-height:100%;object-fit:contain}.bbs .bb-ph figcaption{font-size:12.5px;line-height:1.3}
 .bbs .bb-pgn{text-align:right;font-size:11px;color:#555;padding-top:4px}
+.bb-db{border:1px solid var(--line);border-radius:12px;padding:12px;display:flex;flex-direction:column;gap:10px;background:#fffaf0}
+.bb-dbr{display:grid;grid-template-columns:minmax(220px,2.6fr) 70px 100px 130px 140px 44px;gap:8px;align-items:start;padding-bottom:8px;border-bottom:1px dashed var(--line)}.bb-dbr>button{margin-top:22px}
+.bb-dbr .f{margin:0}.bb-dbr .tt{display:flex;flex-direction:column;gap:4px;font-size:12.5px;color:var(--muted);font-weight:600}.bb-dbr .tt b{font-size:15px;color:var(--ink);min-height:40px;display:flex;align-items:center;font-variant-numeric:tabular-nums}
+.bb-dbr .nog{font-size:11.5px;color:var(--bad);font-weight:700}
+@media(max-width:720px){.bb-dbr{grid-template-columns:1fr 1fr}.bb-dbr>.c1{grid-column:1/-1}}
+.bbs .bb-dbt{width:100%;border-collapse:collapse;font-size:13.5px}.bbs .bb-dbt th,.bbs .bb-dbt td{border:1px solid #222;padding:5px 6px;vertical-align:middle}
+.bbs .bb-dbt th{background:#eef1f6;font-weight:700;text-align:center}.bbs .bb-dbt td.n{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}.bbs .bb-dbt tr.sum td{font-weight:700;background:#fbf3df}
+.gia-in{width:130px;text-align:right;font-weight:700}
+@media(max-width:640px){.gtab th:nth-child(3),.gtab td:nth-child(3){display:none}.gia-in{width:110px}}
 
 /* ===== Menu nhóm Vật tư_Thiết Bị ===== */
 .nav{flex-wrap:nowrap}
@@ -459,6 +468,8 @@ async function initFirebase(){
       if(photos){const old=await F.getDocs(F.query(F.collection(fs,'bbp_photos'),F.where('rid','==',id)));for(const d of old.docs){if(+d.data().idx>=photos.length)await F.deleteDoc(d.ref);}
         for(let i=0;i<photos.length;i++)await F.setDoc(D('bbp_photos/'+id+'-'+i),{rid:id,idx:i,data:photos[i].data,cap:photos[i].cap||''});}
       const {id:_x,...data}=rec;await F.setDoc(D('bbp/'+id),{...data,updatedAt:F.serverTimestamp()});},
+    watchBbpGia:(cb,err)=>F.onSnapshot(D('bbp_gia/main'),s=>cb(s.exists()?norm(s.data()):null),err),
+    saveBbpGia:async items=>F.setDoc(D('bbp_gia/main'),{items,by:ME.name||(U&&U.name)||'',email:U?U.email:'',updatedAt:F.serverTimestamp()}),
     deleteBbp:async id=>{const ph=await F.getDocs(F.query(F.collection(fs,'bbp_photos'),F.where('rid','==',id)));for(const d of ph.docs)await F.deleteDoc(d.ref);await F.deleteDoc(D('bbp_files/'+id)).catch(()=>{});await F.deleteDoc(D('bbp/'+id));},
     findSteelHash:async h=>{if(!h)return null;for(const [c,f] of [['steel_receipts','img_hash'],['steel_queue','hash']]){const a=await F.getDocs(F.query(F.collection(fs,c),F.where(f,'==',h),F.limit(1)));if(!a.empty){const d=a.docs[0].data();return {doi:d.doi,ngay:d.ngay};}}return null;}
   };
@@ -469,7 +480,7 @@ function initMock(){
   const cbs=[],ws=[],steelWs=[];const emit=()=>cbs.forEach(f=>f(cur()));window.__mockEmit=emit;
   const jobWs=[],listS=()=>Object.entries(ld().steel||{}).map(([id,s])=>({id,...s})).sort((a,b)=>b.createdAt-a.createdAt),listJ=()=>Object.entries(ld().sq||{}).map(([id,s])=>({id,...s})).sort((a,b)=>b.createdAt-a.createdAt);
   const emitS=()=>steelWs.forEach(f=>f(listS())),emitJ=()=>jobWs.forEach(f=>f(listJ()));
-  const bbWs=[],listB=()=>Object.entries(ld().bbp||{}).map(([id,s])=>({...s,id})).sort((a,b)=>b.createdAt-a.createdAt),emitB=()=>bbWs.forEach(f=>f(listB()));
+  const gWs=[],bbWs=[],listB=()=>Object.entries(ld().bbp||{}).map(([id,s])=>({...s,id})).sort((a,b)=>b.createdAt-a.createdAt),emitB=()=>bbWs.forEach(f=>f(listB()));
   // giả lập máy chủ đọc ảnh (chỉ dùng khi test cục bộ ?mock)
   window.__mockSteelProcess=fn=>{const d=ld();d.steel=d.steel||{};Object.entries(d.sq||{}).filter(([,j])=>j.status==='cho').forEach(([id,j])=>{const out=fn(j)||{};const rows=out.rows||[];
     if(!rows.length){j.status='loi';j.error=out.error||'Không đọc được bảng số liệu thép trong ảnh';return;}
@@ -512,6 +523,8 @@ function initMock(){
     getBbpFiles:async id=>({...((ld().bbf||{})[id]||{})}),
     getBbpPhotos:async id=>((ld().bbph||{})[id]||[]).map(p=>({...p})),
     saveBbp:async(rec,files,photos)=>{const d=ld();d.bbp=d.bbp||{};d.bbf=d.bbf||{};d.bbph=d.bbph||{};if(files)d.bbf[rec.id]={...(d.bbf[rec.id]||{}),...files};if(photos)d.bbph[rec.id]=photos.map(p=>({data:p.data,cap:p.cap||''}));const {id:_x,...data}=rec;d.bbp[rec.id]={...data,updatedAt:Date.now()};sv(d);emitB();},
+    watchBbpGia:cb=>{gWs.push(cb);setTimeout(()=>cb(ld().bbg||null),0);return()=>{const i=gWs.indexOf(cb);if(i>=0)gWs.splice(i,1);};},
+    saveBbpGia:async items=>{const d=ld();d.bbg={items,by:ME.name||'',updatedAt:Date.now()};sv(d);gWs.forEach(f=>f(d.bbg));},
     deleteBbp:async id=>{const d=ld();delete (d.bbp||{})[id];delete (d.bbf||{})[id];delete (d.bbph||{})[id];sv(d);emitB();},
     findSteelHash:async h=>{if(!h)return null;const d=ld();const r=Object.values(d.steel||{}).find(x=>x.img_hash===h)||Object.values(d.sq||{}).find(x=>x.hash===h);return r?{doi:r.doi,ngay:r.ngay}:null;}
   };
@@ -1309,6 +1322,20 @@ const BB_V=[
  {c:'3.11',g:3,n:'Các hành vi vi phạm khác về quản lý, sử dụng thiết bị',t:BB_STD,a:BB_DB,a3:BB_OUT}
 ];
 const BB_VM=Object.fromEntries(BB_V.map(v=>[v.c,v]));
+/* ---------- Đền bù thiết bị: khấu trừ 100% đơn giá × số lượng ---------- */
+const BB_GIA_DEF={}; // giá mặc định (đ/ĐVT) — điền từ bảng giá đền bù; CHP sửa trực tiếp ở mục "Bảng giá đền bù"
+let BB_GIA={...BB_GIA_DEF},BB_GIA_META=null;
+const bbGia=c=>Number(BB_GIA[c])||0;
+const bbCat=c=>CAT.find(x=>x[0]===c);
+const bbSl=v=>{const n=Number(String(v??'').replace(',','.').replace(/[^\d.]/g,''));return isFinite(n)?n:0;};
+const bbSlFmt=n=>String(Math.round(n*100)/100).replace('.',',');
+const bbDbBlank=()=>({code:'',ten:'',dvt:'',sl:'',gia:0,giaTay:false});
+function bbDbItems(rec){const lock=rec.status==='cho_duyet'||rec.status==='da_duyet';
+  return (rec.dbItems||[]).filter(x=>x.code).map(x=>{const c=bbCat(x.code),gT=x.code==='__k'?0:bbGia(x.code),gia=(lock||x.giaTay||!gT)?bbInt(x.gia):gT,sl=bbSl(x.sl);
+    return {...x,ten:x.code==='__k'?(x.ten||''):(c?c[1]:x.ten||''),dvt:x.code==='__k'?(x.dvt||''):(c?c[2]:x.dvt||''),gia,sl,tt:Math.round(gia*sl),coBang:!!gT};});}
+const BB_DB_INLINE=3;
+const bbDbOf=r=>r.tongDenBu!=null?r.tongDenBu:bbInt(r.denBu);
+const bbNeedDb=v=>!!v&&v.a.some(a=>/^Đền bù/.test(a));
 const BB_MUC={nhe:'Nhẹ',tb:'Trung bình',nang:'Nặng'};
 const BB_MUC_HINT={nhe:'≤ 10 cái/cây, thiệt hại nhỏ, khắc phục ngay tại chỗ',tb:'11–50 cái/cây, hoặc phải dừng việc để khắc phục',nang:'> 50 cái/cây, thiệt hại lớn, ảnh hưởng an toàn hoặc cố ý'};
 const BB_ST={nhap:'Nháp',cho_duyet:'Chờ CHP duyệt',da_duyet:'Đã duyệt',tra_lai:'Bị trả lại'};
@@ -1347,12 +1374,12 @@ function bbRows(all,rec){return rec.rows.map((r,i)=>{const v=BB_VM[r.code];if(!v
   const lan=bbLan(all,rec,i),muc=r.mucTay?r.muc:bbMucFromSl(r.sl),[a,b]=bbTier(v,lan).map(x=>x*1e6);
   const tien=r.tienTay?Math.min(b,Math.max(a,bbInt(r.tien))):bbAmount(v,lan,muc);
   return {...r,lan,muc,khung:[a,b],tien,v};});}
-function bbTotals(all,rec){const rows=bbRows(all,rec),phat=rows.reduce((s,r)=>s+(r.v?r.tien:0),0),db=bbInt(rec.denBu);return {rows,phat,denBu:db,tong:phat+db};}
+function bbTotals(all,rec){const rows=bbRows(all,rec),phat=rows.reduce((s,r)=>s+(r.v?r.tien:0),0),dbI=bbDbItems(rec),dbTB=dbI.reduce((s,x)=>s+x.tt,0),dbKhac=bbInt(rec.denBu),db=dbTB+dbKhac;return {rows,phat,dbI,dbTB,dbKhac,denBu:db,tong:phat+db};}
 function bbActs(rows){const set=[];rows.forEach(r=>{if(!r.v)return;r.v.a.forEach(a=>{if(!set.includes(a))set.push(a);});if(r.lan>=3&&r.v.a3&&!set.includes(r.v.a3))set.push(r.v.a3);});return set;}
 
 /* ---------- nội dung tự soạn ---------- */
 function bbText(all,rec,nPhotos){
-  const {rows,phat,denBu,tong}=bbTotals(all,rec),[h,m]=(rec.gioBD||'').split(':'),doi=rec.doi||'[đội vi phạm]',L=[];
+  const {rows,phat,dbI,dbTB,dbKhac,tong}=bbTotals(all,rec),[h,m]=(rec.gioBD||'').split(':'),doi=rec.doi||'[đội vi phạm]',L=[];
   L.push(`Vào lúc ${h||'…'} giờ ${m||'…'}, ngày ${fmtD(rec.ngay)||'…'}, tại ${[rec.hangMuc,rec.viTri].filter(Boolean).join(' – ')||'…'}, BCH công trường ghi nhận ${doi} vi phạm Quy định quản lý, sử dụng VTTB như sau:`);
   rows.filter(r=>r.v).forEach((r,i)=>{
     L.push(`${i+1}. Mục ${r.code} – ${r.v.n}. Vi phạm lần ${r.lan}, mức độ ${BB_MUC[r.muc]}.`);
@@ -1360,9 +1387,10 @@ function bbText(all,rec,nPhotos){
     L.push(`   Mức phạt: ${bbVnd(r.tien)} đ (khung ${r.v.t.length===1?'':'lần '+Math.min(r.lan,3)+': '}${bbVnd(r.khung[0])} – ${bbVnd(r.khung[1])} đ).`);
   });
   L.push('Căn cứ Phụ lục mức xử phạt đối với NTP/NCC không tuân thủ quy định quản lý, sử dụng VTTB, hai bên thống nhất:');
-  L.push(`- Tổng tiền phạt: ${bbVnd(phat)} đ (Bằng chữ: ${bbDocSo(phat)}).`);
-  if(denBu)L.push(`- Đền bù thiệt hại: ${bbVnd(denBu)} đ${rec.denBuGhiChu?' ('+rec.denBuGhiChu+')':''} (Bằng chữ: ${bbDocSo(denBu)}).`);
-  L.push(`- Tổng cộng: ${bbVnd(tong)} đ, khấu trừ vào đợt thanh toán gần nhất của ${doi}.`);
+  L.push(`- Tổng tiền phạt: ${bbVnd(phat)} đ.`);
+  if(dbI.length)L.push(`- Đền bù thiết bị hư hỏng/mất (khấu trừ 100% đơn giá): ${bbVnd(dbTB)} đ`+(dbI.length<=BB_DB_INLINE?': '+dbI.map(x=>`${x.code==='__k'?'':x.code+' '}${x.ten} ${bbSlFmt(x.sl)} ${x.dvt} × ${bbVnd(x.gia)} = ${bbVnd(x.tt)} đ`).join('; '):` (${dbI.length} loại thiết bị, chi tiết tại Phụ lục bảng tính đền bù)`)+'.');
+  if(dbKhac)L.push(`- Chi phí phát sinh khác: ${bbVnd(dbKhac)} đ${rec.denBuGhiChu?' ('+rec.denBuGhiChu+')':''}.`);
+  L.push(`- Tổng cộng khấu trừ: ${bbVnd(tong)} đ (Bằng chữ: ${bbDocSo(tong)}), khấu trừ vào đợt thanh toán gần nhất của ${doi}.`);
   const acts=bbActs(rows);if(acts.length)L.push(`- Yêu cầu kèm theo: ${acts.join('; ')}.`);
   L.push(`Kèm theo ${nPhotos??rec.photoCount??0} ảnh hiện trường (phụ lục hình ảnh). Biên bản lập thành 02 bản, NTC giữ 01 bản, ${doi} giữ 01 bản.`);
   if(rec.tuChoi)L.push(`Đại diện ${doi} từ chối ký. Lý do: ${rec.tuChoiLyDo||'…'}. Người chứng kiến: ${rec.chungKien||'…'}.`);
@@ -1380,7 +1408,7 @@ function bbHead(rec,title){
 function bbSheets(all,rec,photos,files){
   files=files||{};const [h,m]=(rec.gioBD||'').split(':'),[kh,km]=(rec.gioKT||'').split(':'),doi=rec.doi||'',lap=bbLapOf(rec);
   const pers=[[BB_CHP,'CHP NTC']];if(bbNorm(lap.name)!==bbNorm(BB_CHP))pers.push([lap.name,lap.cv]);pers.push([rec.ntpTen,(rec.ntpCv?rec.ntpCv+' ':'')+doi]);
-  const nPages=1+Math.ceil(photos.length/6),ok=rec.status==='da_duyet'&&rec.duyet;
+  const tt=bbTotals(all,rec),apx=tt.dbI.length>BB_DB_INLINE,nPages=1+(apx?1:0)+Math.ceil(photos.length/6),ok=rec.status==='da_duyet'&&rec.duyet;
   const sig=(img,refuse)=>refuse?`<div class="bb-im"><div class="bb-rf">Từ chối ký<br>(có người chứng kiến)</div></div>`:`<div class="bb-im">${img?`<img src="${img}" alt="">`:''}</div>`;
   const cells=[
     {rl:'Người lập',img:files.sigLap,ten:lap.name,ngay:files.sigLap?fmtD(rec.ngay):''},
@@ -1400,10 +1428,21 @@ function bbSheets(all,rec,photos,files){
    <div class="bb-end">Biên bản kết thúc lúc <span class="bb-s">${esc(kh||'')}</span> giờ <span class="bb-s">${esc(km||'')}</span> cùng ngày, đọc cho mọi người cùng nghe và cùng ký tên xác nhận dưới đây:</div>
    <div class="bb-sg">${cells.map(c=>`<div><div>Ký tên:</div><div class="bb-rl">${esc(c.rl)}</div>${sig(c.img,c.refuse)}<div>Họ tên: <b>${esc(c.ten||'')}</b></div><div style="padding-top:3px">Ngày: ${esc(c.ngay)}</div></div>`).join('')}</div>
   </div>${nPages>1?`<div class="bb-pgn">Trang 1/${nPages}</div>`:''}</div>`;
+  if(apx){out+=`<div class="sheet bbs"><div class="bb-fr">${bbHead(rec,'PHỤ LỤC: BẢNG TÍNH ĐỀN BÙ THIẾT BỊ')}
+     <div style="padding:12px;display:flex;flex-direction:column;gap:10px"><div>Đội / nhà thầu: <b>${esc(doi)}</b> · Khấu trừ 100% đơn giá theo Bảng giá đền bù thiết bị dự án.</div>
+     <table class="bb-dbt"><thead><tr><th style="width:34px">STT</th><th>Mã</th><th>Tên thiết bị</th><th>ĐVT</th><th>Số lượng</th><th>Đơn giá (đ)</th><th>Thành tiền (đ)</th></tr></thead><tbody>
+     ${tt.dbI.map((x,i)=>`<tr><td style="text-align:center">${i+1}</td><td>${x.code==='__k'?'':esc(x.code)}</td><td>${esc(x.ten)}</td><td style="text-align:center">${esc(x.dvt)}</td><td class="n">${bbSlFmt(x.sl)}</td><td class="n">${bbVnd(x.gia)}</td><td class="n">${bbVnd(x.tt)}</td></tr>`).join('')}
+     <tr class="sum"><td colspan="6">Cộng đền bù thiết bị</td><td class="n">${bbVnd(tt.dbTB)}</td></tr>
+     ${tt.dbKhac?`<tr><td colspan="6">Chi phí phát sinh khác${rec.denBuGhiChu?' ('+esc(rec.denBuGhiChu)+')':''}</td><td class="n">${bbVnd(tt.dbKhac)}</td></tr>`:''}
+     <tr><td colspan="6">Tiền phạt vi phạm</td><td class="n">${bbVnd(tt.phat)}</td></tr>
+     <tr class="sum"><td colspan="6">TỔNG CỘNG KHẤU TRỪ</td><td class="n">${bbVnd(tt.tong)}</td></tr></tbody></table>
+     <div><i>Bằng chữ: ${esc(bbDocSo(tt.tong))}.</i></div></div>
+    </div><div class="bb-pgn">Trang 2/${nPages}</div></div>`;}
+  const p0=apx?3:2;
   for(let p=0;p*6<photos.length;p++){const chunk=photos.slice(p*6,p*6+6);
     out+=`<div class="sheet bbs"><div class="bb-fr">${bbHead(rec,'PHỤ LỤC HÌNH ẢNH HIỆN TRƯỜNG')}
      <div class="bb-ph">${chunk.map((ph,i)=>`<figure><div class="bb-ib"><img src="${ph.data}" alt=""></div><figcaption><b>Ảnh ${p*6+i+1}.</b> ${esc(ph.cap||'')}</figcaption></figure>`).join('')}</div>
-    </div><div class="bb-pgn">Trang ${p+2}/${nPages}</div></div>`;}
+    </div><div class="bb-pgn">Trang ${p+p0}/${nPages}</div></div>`;}
   return out;
 }
 function bbFit(root){root.querySelectorAll('.bb-nd').forEach(el=>{el.classList.remove('s1','s2');if(el.scrollHeight>el.clientHeight+2){el.classList.add('s1');if(el.scrollHeight>el.clientHeight+2){el.classList.remove('s1');el.classList.add('s2');}}});}
@@ -1442,7 +1481,7 @@ async function bbExcel(list,info){
   const head=(ws,r,cols)=>{cols.forEach((h,i)=>cell(ws,r,i+1,h,{bold:true,color:'FFFFFFFF',fill:NAVY}));ws.getRow(r).height=32;};
   const title=(ws,t,n)=>{ws.getCell(1,1).value=t;ws.mergeCells(1,1,1,n);ws.getCell(1,1).font={name:FN,bold:true,size:14,color:{argb:NAVY}};ws.getCell(2,1).value=`Dự án HH12 Cổ Loa · ${info} · chỉ tính biên bản đã được CHP duyệt · xuất ngày ${fmtD(today())}`;ws.mergeCells(2,1,2,n);ws.getCell(2,1).font={name:FN,italic:true};};
   // 1. Tổng hợp theo đội
-  const M=new Map();list.forEach(r=>{const k=r.doi;if(!M.has(k))M.set(k,{doi:k,bb:0,loi:0,phat:0,db:0,lan:0});const o=M.get(k);o.bb++;o.loi+=(r.rows||[]).length;o.phat+=r.tongPhat||0;o.db+=bbInt(r.denBu);(r.rows||[]).forEach(x=>{o.lan=Math.max(o.lan,x.lan||1);});});
+  const M=new Map();list.forEach(r=>{const k=r.doi;if(!M.has(k))M.set(k,{doi:k,bb:0,loi:0,phat:0,db:0,lan:0});const o=M.get(k);o.bb++;o.loi+=(r.rows||[]).length;o.phat+=r.tongPhat||0;o.db+=bbDbOf(r);(r.rows||[]).forEach(x=>{o.lan=Math.max(o.lan,x.lan||1);});});
   const T=[...M.values()].sort((a,b)=>(b.phat+b.db)-(a.phat+a.db));
   const w0=wb.addWorksheet('Tong hop theo doi');[6,28,10,10,16,16,18,26].forEach((w,i)=>w0.getColumn(i+1).width=w);
   title(w0,'TỔNG HỢP PHẠT VI PHẠM QUẢN LÝ, SỬ DỤNG VTTB THEO ĐỘI',8);
@@ -1456,10 +1495,18 @@ async function bbExcel(list,info){
   title(w1,'CHI TIẾT BIÊN BẢN PHẠT NTP-ĐTC',15);
   head(w1,4,['Số BB','Ngày','Đội','Đại diện đội','Vị trí','Mục','Hành động vi phạm','Lần','Mức độ','Tiền phạt (đ)','Đền bù (đ)','Tổng BB (đ)','Mô tả','Người lập','Ngày duyệt']);
   let r=5;list.slice().sort((a,b)=>String(a.so).localeCompare(String(b.so))).forEach(b=>(b.rows||[]).forEach((x,i)=>{
-    [b.so,fmtD(b.ngay),b.doi,b.ntpTen+(b.ntpCv?' ('+b.ntpCv+')':''),[b.hangMuc,b.viTri].filter(Boolean).join(' – '),x.code,(BB_VM[x.code]||{}).n||'',x.lan||1,BB_MUC[x.muc]||'',x.tien,i?null:bbInt(b.denBu),i?null:b.tongCong,x.mota,(b.lap&&b.lap.name)||'',b.duyet?fmtD(b.duyet.date):''].forEach((v,c)=>cell(w1,r,c+1,v,{left:[2,3,4,6,12,13].includes(c),fmt:c>=9&&c<=11?MF:undefined,fill:c===7&&(x.lan||1)>=3?RED:undefined}));r++;}));
+    [b.so,fmtD(b.ngay),b.doi,b.ntpTen+(b.ntpCv?' ('+b.ntpCv+')':''),[b.hangMuc,b.viTri].filter(Boolean).join(' – '),x.code,(BB_VM[x.code]||{}).n||'',x.lan||1,BB_MUC[x.muc]||'',x.tien,i?null:bbDbOf(b),i?null:b.tongCong,x.mota,(b.lap&&b.lap.name)||'',b.duyet?fmtD(b.duyet.date):''].forEach((v,c)=>cell(w1,r,c+1,v,{left:[2,3,4,6,12,13].includes(c),fmt:c>=9&&c<=11?MF:undefined,fill:c===7&&(x.lan||1)>=3?RED:undefined}));r++;}));
   cell(w1,r,1,'TỔNG',{bold:true,fill:GOLD});for(let c=2;c<=15;c++)cell(w1,r,c,'',{fill:GOLD});
   ['J','K','L'].forEach((L,k)=>cell(w1,r,10+k,{formula:r>5?`SUM(${L}5:${L}${r-1})`:'0'},{bold:true,fill:GOLD,fmt:MF}));
   w1.views=[{state:'frozen',ySplit:4}];w1.autoFilter={from:{row:4,column:1},to:{row:Math.max(4,r-1),column:15}};
+  // 3. Chi tiết đền bù thiết bị
+  const w2=wb.addWorksheet('Chi tiet den bu');[16,11,24,12,30,8,10,14,16].forEach((w,i)=>w2.getColumn(i+1).width=w);
+  title(w2,'CHI TIẾT ĐỀN BÙ THIẾT BỊ HƯ HỎNG / MẤT (KHẤU TRỪ 100% ĐƠN GIÁ)',9);
+  head(w2,4,['Số BB','Ngày','Đội','Mã TB','Tên thiết bị','ĐVT','Số lượng','Đơn giá (đ)','Thành tiền (đ)']);
+  let r2=5;list.slice().sort((a,b)=>String(a.so).localeCompare(String(b.so))).forEach(b=>{bbDbItems(b).forEach(x=>{[b.so,fmtD(b.ngay),b.doi,x.code==='__k'?'':x.code,x.ten,x.dvt,x.sl,x.gia,{formula:`G${r2}*H${r2}`}].forEach((v,c)=>cell(w2,r2,c+1,v,{left:[2,4].includes(c),fmt:c>=7?MF:undefined}));r2++;});
+    if(bbInt(b.denBu)){[b.so,fmtD(b.ngay),b.doi,'','Chi phí phát sinh khác'+(b.denBuGhiChu?' ('+b.denBuGhiChu+')':''),'',null,null,bbInt(b.denBu)].forEach((v,c)=>cell(w2,r2,c+1,v,{left:[2,4].includes(c),fmt:c>=7?MF:undefined}));r2++;}});
+  cell(w2,r2,1,'TỔNG',{bold:true,fill:GOLD});for(let c=2;c<=8;c++)cell(w2,r2,c,'',{fill:GOLD});cell(w2,r2,9,{formula:r2>5?`SUM(I5:I${r2-1})`:'0'},{bold:true,fill:GOLD,fmt:MF});
+  w2.views=[{state:'frozen',ySplit:4}];
   const buf=await wb.xlsx.writeBuffer();
   await deliverFile('Tong-hop-phat-NTP-DTC_'+PROJECT_CODE+'_'+today()+'.xlsx',new Blob([buf],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}),'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
 }
@@ -1468,13 +1515,13 @@ async function bbExcel(list,info){
 function viewBbp(tab){
   if(!U)return needLogin('Biên bản hiện trường chỉ dành cho cán bộ NTC. Đăng nhập bằng tài khoản Google đã được cấp quyền.');
   if(!ME.member&&!ME.isAdmin)return needMember();
-  tab=['lap','duyet','luu','tong'].includes(tab)?tab:(canBbp()?'lap':'luu');
+  tab=['lap','duyet','luu','tong','gia'].includes(tab)?tab:(canBbp()?'lap':'luu');
   let all=[],cur=null,photos=[],files={},ntpPad=null,dirtyPhotos=false,ldT=null,lanSig='',needPh=false;
   const saveLocal=()=>{clearTimeout(ldT);ldT=setTimeout(()=>{try{if(cur)localStorage.setItem('bbp-cur',JSON.stringify({cur,sigNtp:files.sigNtp||''}));}catch(e){}},400);};
   const T=(k,l,n)=>`<button type="button" data-tab="${k}" class="btn sm ${tab===k?'blue':''}">${l}${n?` <span class="badge b-rejected" style="padding:1px 8px">${n}</span>`:''}</button>`;
   app.innerHTML=`<div class="eyebrow">Biên bản hiện trường · Vi phạm quy định quản lý, sử dụng VTTB</div><h2 style="margin:4px 0 12px;font-size:26px;color:var(--navy)">Biên bản phạt NTP-ĐTC</h2>
    <nav class="row" id="bbTabs" aria-label="Mục biên bản"></nav><div id="bbBody"></div>`;
-  const drawTabs=()=>{const n=all.filter(r=>r.status==='cho_duyet').length;$('bbTabs').innerHTML=(canBbp()?T('lap','Lập biên bản'):'')+T('duyet','Chờ duyệt',n)+T('luu','Đã duyệt')+T('tong','Tổng hợp theo đội');};
+  const drawTabs=()=>{const n=all.filter(r=>r.status==='cho_duyet').length;$('bbTabs').innerHTML=(canBbp()?T('lap','Lập biên bản'):'')+T('duyet','Chờ duyệt',n)+T('luu','Đã duyệt')+T('tong','Tổng hợp theo đội')+T('gia','Bảng giá đền bù');};
   drawTabs();
   const body=$('bbBody');
   $('bbTabs').onclick=e=>{const b=e.target.closest('[data-tab]');if(!b||b.dataset.tab===tab)return;tab=b.dataset.tab;try{history.replaceState(null,'','#/bien-ban/'+tab);}catch(_){}drawTabs();R[tab]();};
@@ -1502,10 +1549,15 @@ function viewBbp(tab){
      <p class="hint">Chọn lỗi theo Phụ lục mức xử phạt VTTB. Lần vi phạm tự đếm theo lịch sử của đội với đúng lỗi đó (tính cả biên bản đang chờ duyệt). Số tiền tự đề xuất theo mức độ, chỉ sửa được trong khung của lần vi phạm.</p>
      <div id="bVios" style="display:flex;flex-direction:column;gap:10px"></div>
      <div class="row"><button type="button" class="btn sm" id="bAddV">+ Thêm lỗi</button></div>
-     <div class="grid">
-      <label class="f" for="bDb">Đền bù thiệt hại (đồng)<input id="bDb" data-k="denBu" inputmode="numeric" placeholder="0"></label>
-      <label class="f" for="bDbG">Diễn giải đền bù<input id="bDbG" data-k="denBuGhiChu" placeholder="VD: 12 cây giằng 1.2m × 85.000đ"></label>
-     </div><div class="bb-sum" id="bSum"></div></section>
+     <div class="bb-db"><h3 class="g" style="margin:0">Đền bù thiết bị hư hỏng / mất · khấu trừ 100% đơn giá</h3>
+      <p class="hint" style="margin:0">Chọn thiết bị bị hư hỏng, mất. Đơn giá tự lấy theo <a href="#/bien-ban/gia">Bảng giá đền bù</a>; thành tiền = đơn giá × số lượng, cộng thẳng vào tổng khấu trừ.</p>
+      <div id="bDbHint" class="msg err" hidden></div>
+      <div id="bDbRows" style="display:flex;flex-direction:column;gap:8px"></div>
+      <div class="row"><button type="button" class="btn sm" id="bAddDb">+ Thêm thiết bị đền bù</button></div>
+      <div class="grid">
+       <label class="f" for="bDb">Chi phí phát sinh khác (đồng)<input id="bDb" data-k="denBu" inputmode="numeric" placeholder="0"></label>
+       <label class="f" for="bDbG">Diễn giải chi phí khác<input id="bDbG" data-k="denBuGhiChu" placeholder="VD: nhân công tháo dỡ, vận chuyển"></label>
+      </div></div><div class="bb-sum" id="bSum"></div></section>
     <section class="panel"><h2><i>3</i>Nội dung biên bản</h2><p class="hint">Tự soạn từ các mục trên. Ghi chú thêm in cuối phần nội dung.</p>
      <pre class="bb-gen" id="bGen"></pre>
      <label class="f" for="bGhi">Ghi chú thêm<textarea id="bGhi" data-k="ghiChu" placeholder="VD: Đội đã thu hồi 20/30 cây giằng, còn thiếu 10 cây."></textarea></label></section>
@@ -1555,8 +1607,21 @@ function viewBbp(tab){
          ${r.v?`<div><h3 class="g">Hành động kèm theo</h3><ul style="margin:4px 0 0;padding-left:18px;font-size:13px">${r.v.a.map(a=>`<li>${esc(a)}</li>`).join('')}${r.v.a3?`<li${r.lan>=3?' style="color:var(--bad);font-weight:700"':''}>${esc(r.v.a3)}</li>`:''}</ul></div>`:''}</div>`;}).join('');
       sumGen(t,rows);
     };
+    const dbOpts=c=>Object.entries(CATS).map(([g,l])=>`<optgroup label="${esc(g)}">${l.map(x=>{const gg=bbGia(x[0]);return `<option value="${x[0]}"${x[0]===c?' selected':''}>${x[0]} – ${esc(x[1])} (${esc(x[2])}) · ${gg?bbVnd(gg)+' đ':'chưa có giá'}</option>`;}).join('')}</optgroup>`).join('')+`<option value="__k"${c==='__k'?' selected':''}>Thiết bị khác (nhập tay tên, ĐVT, đơn giá)</option>`;
+    const dbRows=()=>{cur.dbItems=cur.dbItems||[];
+      $('bDbRows').innerHTML=cur.dbItems.length?cur.dbItems.map((x,i)=>{const k=x.code==='__k',c=bbCat(x.code),gT=k?0:bbGia(x.code),gia=(x.giaTay||!gT)?bbInt(x.gia):gT,tt=Math.round(gia*bbSl(x.sl));
+        return `<div class="bb-dbr" data-di="${i}">
+         <label class="f c1" for="dc${i}">Thiết bị ${i+1} *<select id="dc${i}" data-d="code"><option value="">— Chọn thiết bị —</option>${dbOpts(x.code)}</select>${k?`<input data-d="ten" id="dn${i}" placeholder="Tên thiết bị" value="${esc(x.ten||'')}" style="margin-top:6px">`:''}</label>
+         <label class="f" for="du${i}">ĐVT<input id="du${i}" data-d="dvt" value="${esc(k?(x.dvt||''):(c?c[2]:''))}"${k?'':' disabled'}></label>
+         <label class="f" for="ds${i}">Số lượng *<input id="ds${i}" data-d="sl" inputmode="decimal" value="${esc(x.sl)}" placeholder="0"></label>
+         <label class="f" for="dg${i}">Đơn giá (đ) ${gT&&!x.giaTay?'':'*'}<input id="dg${i}" data-d="gia" inputmode="numeric" value="${gia?bbVnd(gia):''}"${gT?' disabled title="Theo bảng giá đền bù"':''} placeholder="Nhập giá">${x.code&&!k&&!gT?'<span class="nog">Ngoài bảng giá – nhập tay</span>':''}</label>
+         <div class="tt">Thành tiền<b data-tt>${bbVnd(tt)} đ</b></div>
+         <button type="button" class="btn sm" data-deldb="${i}" aria-label="Xoá thiết bị ${i+1}" title="Xoá">✕</button></div>`;}).join(''):'<p class="hint" style="margin:0">Chưa có thiết bị đền bù.</p>';};
     const sumGen=(t,rows)=>{t=t||bbTotals(all,cur);rows=rows||t.rows;
-      $('bSum').innerHTML=`<div><span>Tổng tiền phạt</span><b>${bbVnd(t.phat)} đ</b></div><div><span>Đền bù thiệt hại</span><b>${bbVnd(t.denBu)} đ</b></div><div><span>Tổng khấu trừ</span><b style="color:var(--bad)">${bbVnd(t.tong)} đ</b></div>`;
+      $('bSum').innerHTML=`<div><span>Tổng tiền phạt</span><b>${bbVnd(t.phat)} đ</b></div><div><span>Đền bù thiết bị${t.dbKhac?' + chi phí khác':''}</span><b>${bbVnd(t.denBu)} đ</b></div><div><span>Tổng khấu trừ</span><b style="color:var(--bad)">${bbVnd(t.tong)} đ</b></div>`;
+      const nd=rows.filter(r=>bbNeedDb(r.v)).map(r=>r.code);$('bDbHint').hidden=!(nd.length&&!t.denBu);
+      if(nd.length&&!t.denBu)$('bDbHint').textContent=`Lỗi ${nd.join(', ')} có yêu cầu đền bù thiệt hại — nhập thiết bị hư hỏng/mất bên dưới (nếu có).`;
+      $('bDbRows').querySelectorAll('.bb-dbr').forEach(el=>{const x=cur.dbItems[+el.dataset.di];if(!x)return;const gT=x.code==='__k'?0:bbGia(x.code),gia=(x.giaTay||!gT)?bbInt(x.gia):gT;el.querySelector('[data-tt]').textContent=bbVnd(Math.round(gia*bbSl(x.sl)))+' đ';});
       $('bGen').textContent=bbText(all,cur,photos.length);
       const w3=rows.filter(r=>r.v&&r.lan>=3);$('bbWarn3').hidden=!w3.length;
       if(w3.length)$('bbWarn3').innerHTML=`<b>Cảnh báo:</b> ${esc(cur.doi)} đã vi phạm ${w3.map(r=>'mục '+r.code+' lần '+r.lan).join(', ')} — theo phụ lục: ${esc([...new Set(w3.map(r=>r.v.a3).filter(Boolean))].join('; ')||'áp mức cao nhất')}.`;};
@@ -1566,7 +1631,7 @@ function viewBbp(tab){
       ['bNgay:ngay','bGio:gioBD','bHm:hangMuc','bVt:viTri','bNtp:ntpTen','bCv:ntpCv','bDb:denBu','bDbG:denBuGhiChu','bGhi:ghiChu','bTcLd:tuChoiLyDo','bCk:chungKien'].forEach(x=>{const [id,k]=x.split(':');$(id).value=cur[k]||'';$(id).classList.remove('invalid');});
       $('bTuChoi').checked=!!cur.tuChoi;$('bTuChoiBox').hidden=!cur.tuChoi;
       $('bbTraLai').hidden=cur.status!=='tra_lai';if(cur.status==='tra_lai')$('bbTraLai').textContent='CHP trả lại biên bản '+(cur.so||'')+': '+((cur.traLai&&cur.traLai.lyDo)||'')+'. Sửa theo yêu cầu rồi gửi duyệt lại.';
-      fillDoi();pers();lapSig();ntpSig();render();photosUI();
+      fillDoi();pers();lapSig();ntpSig();dbRows();render();photosUI();
     };
     const mine=()=>{const l=all.filter(r=>(r.status==='nhap'||r.status==='tra_lai')&&(ME.isAdmin||(r.lap&&r.lap.email===U.email))).sort((a,b)=>(b.createdAt||0)-(a.createdAt||0));
       $('bbMine').innerHTML=l.length?l.map(r=>bbCard(r,`<button type="button" class="btn sm line" data-edit="${r.id}">Mở để sửa</button><button type="button" class="btn sm" data-delr="${r.id}" style="color:var(--bad);border-color:var(--bad)">Xoá</button>`)).join(''):'<p class="hint">Không có nháp hay biên bản bị trả lại. Điền các bước bên dưới để lập biên bản mới.</p>';
@@ -1576,6 +1641,7 @@ function viewBbp(tab){
     if(!cur){try{const d=JSON.parse(localStorage.getItem('bbp-cur')||'null');if(d&&d.cur&&d.cur.rows){cur=d.cur;files={sigNtp:d.sigNtp||''};needPh=true;}}catch(e){}}
     if(!cur)cur=bbBlank();
     load();mine();
+    renderLap.gia=()=>{dbRows();sumGen();};
     renderLap.refresh=async()=>{mine();fillDoi();
       if(needPh&&!dirtyPhotos&&!photos.length&&all.some(x=>x.id===cur.id)){needPh=false;try{const [ph,fl]=await Promise.all([DB.getBbpPhotos(cur.id),DB.getBbpFiles(cur.id)]);photos=ph;if(!files.sigNtp)files.sigNtp=fl.sigNtp||'';photosUI();ntpSig();}catch(e){}}const sg=bbRows(all,cur).map(r=>r.lan).join(',');if(sg!==lanSig){lanSig=sg;render();}else sumGen();};
     $('bbNew').onclick=()=>{if(cur&&(cur.viTri||cur.doi||cur.rows.some(r=>r.code))&&!confirm('Bỏ biên bản đang soạn (chưa lưu) để lập mới?'))return;startNew();};
@@ -1589,21 +1655,31 @@ function viewBbp(tab){
         e.target.classList.remove('invalid');sumGen();saveLocal();
         if(r==='sl'){const cr=bbRows(all,cur)[i];box.querySelectorAll('[data-muc]').forEach(b=>b.setAttribute('aria-pressed',b.dataset.muc===cr.muc));const t=box.querySelector('[data-r="tien"]');if(t&&cr.v)t.value=bbVnd(cr.tien);}
         return;}
+      const dd=e.target.dataset.d;if(dd&&dd!=='code'){const x=cur.dbItems[+e.target.closest('.bb-dbr').dataset.di];
+        if(dd==='sl'){x.sl=e.target.value.replace(/[^\d.,]/g,'');e.target.value=x.sl;}
+        if(dd==='gia'){x.gia=bbInt(e.target.value);x.giaTay=true;}
+        if(dd==='ten')x.ten=e.target.value;if(dd==='dvt')x.dvt=e.target.value;
+        e.target.classList.remove('invalid');sumGen();saveLocal();return;}
       const cp=e.target.dataset.cap;if(cp!=null){photos[+cp].cap=e.target.value;dirtyPhotos=true;}
     });
     sec.addEventListener('change',e=>{
       if(e.target.dataset.r==='code'){const i=+e.target.closest('.bb-vio').dataset.i;cur.rows[i].code=e.target.value;cur.rows[i].tienTay=false;render();saveLocal();}
       if(e.target.dataset.r==='tien'){render();}
+      if(e.target.dataset.d==='code'){const i=+e.target.closest('.bb-dbr').dataset.di;cur.dbItems[i]={...bbDbBlank(),code:e.target.value,sl:cur.dbItems[i].sl};dbRows();sumGen();saveLocal();const n=$(e.target.value==='__k'?'dn'+i:'ds'+i);if(n)n.focus();}
+      if(e.target.dataset.d==='gia'){const x=cur.dbItems[+e.target.closest('.bb-dbr').dataset.di];e.target.value=x.gia?bbVnd(x.gia):'';}
       if(e.target.id==='bDoi'){if(e.target.value==='__k'){cur._khac=true;$('bDoiKW').hidden=false;cur.doi=$('bDoiK').value.trim();$('bDoiK').focus();}else{cur._khac=false;$('bDoiKW').hidden=true;cur.doi=e.target.value;}ntpTitle();render();saveLocal();}
+      if(e.target.id==='bDb'){const v=bbInt(e.target.value);cur.denBu=v?bbVnd(v):'';e.target.value=cur.denBu;sumGen();saveLocal();}
       if(e.target.id==='bDoiK'){cur.doi=e.target.value.trim();ntpTitle();render();saveLocal();}
       if(e.target.id==='bTuChoi'){cur.tuChoi=e.target.checked;$('bTuChoiBox').hidden=!cur.tuChoi;if(cur.tuChoi)files.sigNtp='';ntpSig();sumGen();saveLocal();}
     });
     sec.addEventListener('click',e=>{
       const m=e.target.closest('[data-muc]');if(m){const i=+m.closest('.bb-vio').dataset.i;Object.assign(cur.rows[i],{muc:m.dataset.muc,mucTay:true,tienTay:false});render();saveLocal();return;}
       const d=e.target.closest('[data-delv]');if(d){cur.rows.splice(+d.dataset.delv,1);render();saveLocal();return;}
+      const dx=e.target.closest('[data-deldb]');if(dx){cur.dbItems.splice(+dx.dataset.deldb,1);dbRows();sumGen();saveLocal();return;}
       const p=e.target.closest('[data-delp]');if(p){photos.splice(+p.dataset.delp,1);dirtyPhotos=true;photosUI();sumGen();return;}
     });
     $('bAddV').onclick=()=>{cur.rows.push(bbBlankRow());render();saveLocal();};
+    $('bAddDb').onclick=()=>{cur.dbItems=cur.dbItems||[];if(cur.dbItems.length>=30){setMsg('Tối đa 30 dòng thiết bị đền bù.','err');return;}cur.dbItems.push(bbDbBlank());dbRows();sumGen();saveLocal();const n=$('dc'+(cur.dbItems.length-1));if(n)n.focus();};
     $('bPick').onchange=async e=>{const fl=[...e.target.files].filter(f=>/^image\//.test(f.type));e.target.value='';const room=12-photos.length;
       if(room<=0){setMsg('Đã đủ 12 ảnh. Xoá bớt để thêm ảnh khác.','err');return;}
       $('bPhInfo').textContent='Đang nén ảnh…';for(const f of fl.slice(0,room)){try{photos.push({data:await bbCompress(f),cap:''});dirtyPhotos=true;}catch(err){}}
@@ -1616,18 +1692,24 @@ function viewBbp(tab){
       if(!cur.doi)mark($('bDoi').value==='__k'?'bDoiK':'bDoi','Đội vi phạm');if(!String(cur.ntpTen).trim())mark('bNtp','Tên đại diện nhà thầu');if(!cur.ntpCv)mark('bCv','Chức vụ đại diện');
       cur.rows.forEach((r,i)=>{if(!r.code)mark('vc'+i,'Lỗi '+(i+1));if(!String(r.mota).trim())mark('vm'+i,'Mô tả lỗi '+(i+1));});
       const codes=cur.rows.map(r=>r.code).filter(Boolean);if(new Set(codes).size<codes.length)miss.push('Một lỗi bị chọn 2 lần — gộp vào 1 dòng và ghi rõ số lượng');
+      (cur.dbItems||[]).forEach((x,i)=>{const L='thiết bị đền bù '+(i+1);if(!x.code){mark('dc'+i,'Chọn '+L);return;}
+        if(x.code==='__k'&&!String(x.ten||'').trim())mark('dn'+i,'Tên '+L);if(x.code==='__k'&&!String(x.dvt||'').trim())mark('du'+i,'ĐVT '+L);
+        if(!(bbSl(x.sl)>0))mark('ds'+i,'Số lượng '+L);
+        const gT=x.code==='__k'?0:bbGia(x.code);if(!((x.giaTay||!gT)?bbInt(x.gia):gT))mark('dg'+i,'Đơn giá '+L+(x.code!=='__k'?' ('+x.code+' chưa có trong bảng giá)':''));});
       if(!photos.length)miss.push('Ít nhất 1 ảnh hiện trường');
       if(!(ME.profile&&ME.profile.signature))miss.push('Chữ ký người lập (khai báo ở mục Chữ ký)');
       if(cur.tuChoi){if(!String(cur.tuChoiLyDo).trim())mark('bTcLd','Lý do từ chối ký');if(!String(cur.chungKien).trim())mark('bCk','Người chứng kiến');}
       else if(!files.sigNtp)miss.push('Chữ ký đại diện nhà thầu (hoặc tick "từ chối ký")');
       return miss;};
-    const recOut=()=>{const c=JSON.parse(JSON.stringify(cur));delete c._khac;c.photoCount=photos.length;const t=bbTotals(all,cur);c.tongPhat=t.phat;c.tongCong=t.tong;c.lap=bbLapOf(cur);return c;};
+    const recOut=()=>{const c=JSON.parse(JSON.stringify(cur));delete c._khac;c.photoCount=photos.length;const t=bbTotals(all,cur);c.tongPhat=t.phat;c.tongDenBu=t.denBu;c.tongCong=t.tong;c.lap=bbLapOf(cur);
+      c.dbItems=(c.dbItems||[]).filter(x=>x.code);const it=bbDbItems(cur);c.dbItems=c.dbItems.map((x,i)=>{const y=it[i]||{};return {code:x.code,ten:y.ten||'',dvt:y.dvt||'',sl:x.sl,gia:y.gia||0,giaTay:!!x.giaTay,tt:y.tt||0};});return c;};
     $('bDraft').onclick=async()=>{grabNtp();$('bDraft').disabled=true;setMsg('Đang lưu nháp…');
       try{const r=recOut();if(r.status!=='tra_lai')r.status='nhap';await DB.saveBbp(r,{sigNtp:files.sigNtp||''},(dirtyPhotos||!all.some(x=>x.id===r.id))?photos:null);cur.lap=r.lap;dirtyPhotos=false;setMsg('Đã lưu nháp lên hệ thống (cả ảnh). Mở lại ở mục "Biên bản đang làm".','ok');}
       catch(e){setMsg('Không lưu được: '+(e.code||e.message),'err');}$('bDraft').disabled=false;};
     $('bPrev').onclick=()=>{grabNtp();bbViewer(all,recOut(),photos,{sigNtp:files.sigNtp,sigLap:ME.profile&&ME.profile.signature},'preview');};
     $('bSend').onclick=async()=>{grabNtp();const miss=validate();
       if(miss.length){setMsg('Còn thiếu: '+miss.join(', ')+'.','err');const f=document.querySelector('#bbBody .invalid');if(f)f.scrollIntoView({block:'center'});return;}
+      {const t0=bbTotals(all,cur),nd=t0.rows.filter(r=>bbNeedDb(r.v)).map(r=>r.code);if(nd.length&&!t0.denBu&&!confirm(`Lỗi ${nd.join(', ')} có yêu cầu đền bù thiệt hại nhưng chưa nhập thiết bị đền bù.\nBấm OK nếu không có thiết bị hư hỏng/mất, Huỷ để quay lại nhập.`))return;}
       $('bSend').disabled=true;setMsg('Đang gửi CHP duyệt…');
       try{
         const rows=bbRows(all,cur),r=recOut();
@@ -1665,20 +1747,59 @@ function viewBbp(tab){
       <div class="row"><label class="f" for="tT" style="width:200px">Tháng (để trống = cả dự án)<input id="tT" type="month" value="${esc(tTh)}"></label><button type="button" class="btn sm red" id="tX" style="align-self:flex-end">Xuất Excel cho QS</button></div></div>
      <div id="tBox" class="scroll"></div><p class="hint">Chỉ tính biên bản đã được CHP duyệt. Cột "Lần cao nhất" cho biết đội đã chạm mức lần 3 (mời ra khỏi công trường) hay chưa.</p></section>`;
     const list=()=>all.filter(r=>r.status==='da_duyet'&&(!tTh||String(r.ngay||'').startsWith(tTh)));
-    const draw=()=>{const M=new Map();list().forEach(r=>{const k=r.doi;if(!M.has(k))M.set(k,{doi:k,bb:0,loi:0,phat:0,db:0,tong:0,lan:0});const o=M.get(k);o.bb++;o.loi+=(r.rows||[]).length;o.phat+=r.tongPhat||0;o.db+=bbInt(r.denBu);o.tong+=r.tongCong||0;(r.rows||[]).forEach(x=>{o.lan=Math.max(o.lan,x.lan||1);});});
+    const draw=()=>{const M=new Map();list().forEach(r=>{const k=r.doi;if(!M.has(k))M.set(k,{doi:k,bb:0,loi:0,phat:0,db:0,tong:0,lan:0});const o=M.get(k);o.bb++;o.loi+=(r.rows||[]).length;o.phat+=r.tongPhat||0;o.db+=bbDbOf(r);o.tong+=r.tongCong||0;(r.rows||[]).forEach(x=>{o.lan=Math.max(o.lan,x.lan||1);});});
       const rows=[...M.values()].sort((a,b)=>b.tong-a.tong),s=rows.reduce((a,o)=>({bb:a.bb+o.bb,loi:a.loi+o.loi,phat:a.phat+o.phat,db:a.db+o.db,tong:a.tong+o.tong}),{bb:0,loi:0,phat:0,db:0,tong:0});
       $('tBox').innerHTML=rows.length?`<table class="t"><thead><tr><th>Đội / nhà thầu</th><th>Số BB</th><th>Số lỗi</th><th>Tiền phạt</th><th>Đền bù</th><th>Tổng khấu trừ</th><th>Lần cao nhất</th></tr></thead><tbody>${rows.map(o=>`<tr><td>${esc(o.doi)}</td><td>${o.bb}</td><td>${o.loi}</td><td>${bbVnd(o.phat)}</td><td>${bbVnd(o.db)}</td><td><b>${bbVnd(o.tong)}</b></td><td><span class="bb-chip ${o.lan>=3?'l3':o.lan===2?'l2':'l1'}">Lần ${o.lan}${o.lan>=3?' · mời ra khỏi CT':''}</span></td></tr>`).join('')}
         <tr><td><b>Tổng</b></td><td><b>${s.bb}</b></td><td><b>${s.loi}</b></td><td><b>${bbVnd(s.phat)}</b></td><td><b>${bbVnd(s.db)}</b></td><td><b>${bbVnd(s.tong)}</b></td><td></td></tr></tbody></table>`:'<p class="hint">Chưa có biên bản đã duyệt trong phạm vi này.</p>';};
     draw();$('tT').oninput=e=>{tTh=e.target.value;draw();};
     $('tX').onclick=async()=>{const b=$('tX');b.disabled=true;try{await bbExcel(list(),tTh?'tháng '+tTh.split('-').reverse().join('/'):'cả dự án');}catch(e){toast('Không xuất được Excel: '+(e.message||e));}b.disabled=false;};
     renderTong.refresh=draw;};
+  /* ===== Bảng giá đền bù ===== */
+  let G=null,gDirty=false,gQ='',gH='',gF='';
+  const renderGia=()=>{const ad=ME.isAdmin;G={...BB_GIA};gDirty=false;
+    body.innerHTML=`<section class="panel"><div class="row" style="justify-content:space-between"><h2>Bảng giá đền bù thiết bị</h2><span class="hint" id="gMeta"></span></div>
+     <p class="hint">Dùng để tính tiền đền bù khi NTP/ĐTC làm hư hỏng, mất thiết bị: <b>thành tiền = đơn giá × số lượng</b> (khấu trừ 100%), cộng thẳng vào tổng khấu trừ của biên bản. ${ad?'Chỉ CHP sửa được. Biên bản đã gửi duyệt giữ nguyên giá tại thời điểm gửi.':'Chỉ CHP sửa bảng giá; thiết bị chưa có giá thì thủ kho nhập tay trong biên bản.'}</p>
+     <div class="grid"><label class="f" for="gQ">Tìm mã / tên<input id="gQ" type="search" value="${esc(gQ)}" placeholder="VD: RL-25, giằng, la dẹt"></label>
+      <label class="f" for="gH">Hạng mục<select id="gH"><option value="">Tất cả</option>${Object.keys(CATS).map(k=>`<option${k===gH?' selected':''}>${esc(k)}</option>`).join('')}</select></label>
+      <label class="f" for="gF">Hiển thị<select id="gF"><option value="">Tất cả mã</option><option value="0"${gF==='0'?' selected':''}>Chưa có giá</option><option value="1"${gF==='1'?' selected':''}>Đã có giá</option></select></label></div>
+     <div class="bb-sum" id="gSum" style="margin:10px 0"></div>
+     ${ad?`<details style="margin-bottom:10px"><summary style="cursor:pointer;font-weight:700;color:var(--navy)">Dán nhanh từ Excel (cột Mã và Đơn giá)</summary>
+       <p class="hint">Copy 2 cột <b>Mã</b> và <b>Đơn giá</b> trong Excel rồi dán vào đây, mỗi dòng 1 mã. VD: <code>RL-25&nbsp;&nbsp;350000</code></p>
+       <textarea id="gPaste" rows="5" placeholder="RL-25	350000&#10;GN-12	120000"></textarea><div class="row"><button type="button" class="btn sm" id="gPasteGo">Áp dụng vào bảng</button><span id="gPasteMsg" class="hint"></span></div></details>`:''}
+     <div class="scroll"><table class="t gtab"><thead><tr><th>Mã</th><th>Tên thiết bị</th><th>Nhóm</th><th>ĐVT</th><th style="text-align:right">Đơn giá đền bù (đ)</th></tr></thead><tbody id="gBody"></tbody></table></div>
+     <div class="row" style="margin-top:12px">${ad?'<button type="button" class="btn red" id="gSave">Lưu bảng giá</button>':''}<button type="button" class="btn" id="gXls">Xuất Excel bảng giá</button><span id="gMsg" class="hint"></span></div></section>`;
+    const meta=()=>{$('gMeta').textContent=BB_GIA_META&&BB_GIA_META.updatedAt?`Cập nhật ${fmtDT(BB_GIA_META.updatedAt)}${BB_GIA_META.by?' · '+BB_GIA_META.by:''}`:'Chưa lưu lần nào';};
+    const sum=()=>{const n=CAT.length,c=CAT.filter(x=>Number(G[x[0]])>0).length;$('gSum').innerHTML=`<div><span>Tổng số mã</span><b>${n}</b></div><div><span>Đã có giá</span><b>${c}</b></div><div><span>Chưa có giá</span><b style="color:${n-c?'var(--bad)':'inherit'}">${n-c}</b></div>`;};
+    const draw=()=>{const q=bbNorm(gQ),rows=Object.entries(CATS).filter(([k])=>!gH||k===gH).flatMap(([k,l])=>l.map(x=>[...x,k])).filter(x=>(!q||bbNorm(x[0]+' '+x[1]+' '+x[3]).includes(q))&&(!gF||(gF==='1')===(Number(G[x[0]])>0)));
+      $('gBody').innerHTML=rows.length?rows.map(x=>{const g=Number(G[x[0]])||0;return `<tr><td><b>${esc(x[0])}</b></td><td>${esc(x[1])}</td><td>${esc(x[3])}</td><td>${esc(x[2])}</td><td style="text-align:right">${ad?`<input class="gia-in" data-g="${esc(x[0])}" inputmode="numeric" aria-label="Đơn giá ${esc(x[0])}" value="${g?bbVnd(g):''}" placeholder="—">`:(g?`<b>${bbVnd(g)}</b>`:'<span class="hint">chưa có</span>')}</td></tr>`;}).join(''):'<tr><td colspan="5" class="hint">Không có mã phù hợp.</td></tr>';};
+    meta();sum();draw();
+    $('gQ').oninput=e=>{gQ=e.target.value;draw();};$('gH').onchange=e=>{gH=e.target.value;draw();};$('gF').onchange=e=>{gF=e.target.value;draw();};
+    if(ad){
+      $('gBody').addEventListener('input',e=>{const c=e.target.dataset.g;if(!c)return;const v=bbInt(e.target.value);if(v)G[c]=v;else delete G[c];gDirty=true;$('gMsg').textContent='Có thay đổi chưa lưu.';sum();});
+      $('gBody').addEventListener('change',e=>{const c=e.target.dataset.g;if(c)e.target.value=G[c]?bbVnd(G[c]):'';});
+      $('gPasteGo').onclick=()=>{const lines=$('gPaste').value.split(/\r?\n/).map(l=>l.trim()).filter(Boolean),bad=[];let ok=0;
+        lines.forEach(l=>{const parts=l.split(/\t|;|\s{2,}/).map(x=>x.trim()).filter(Boolean),code=(parts[0]||'').toUpperCase().replace(/\s+/g,''),c=CAT.find(x=>x[0].toUpperCase()===code),v=bbInt(parts[parts.length-1]);
+          if(c&&v&&parts.length>1){G[c[0]]=v;ok++;}else bad.push(l.slice(0,30));});
+        gDirty=gDirty||ok>0;$('gPasteMsg').textContent=`Đã áp ${ok} mã.`+(bad.length?` Không nhận ${bad.length} dòng: ${bad.slice(0,5).join(' | ')}`:'')+(ok?' Bấm "Lưu bảng giá" để lưu.':'');sum();draw();};
+      $('gSave').onclick=async()=>{const b=$('gSave');b.disabled=true;$('gMsg').textContent='Đang lưu…';
+        try{const items={};Object.entries(G).forEach(([k,v])=>{if(Number(v)>0&&bbCat(k))items[k]=Number(v);});await DB.saveBbpGia(items);gDirty=false;$('gMsg').textContent='Đã lưu bảng giá. Các biên bản đang lập dùng giá mới ngay.';}
+        catch(e){$('gMsg').textContent='Không lưu được: '+(e.code||e.message);}b.disabled=false;};}
+    $('gXls').onclick=async()=>{if(typeof ExcelJS==='undefined'){toast('Chưa tải được thư viện Excel.');return;}
+      const wb=new ExcelJS.Workbook(),ws=wb.addWorksheet('Bang gia den bu');[12,34,22,8,18].forEach((w,i)=>ws.getColumn(i+1).width=w);
+      ws.addRow(['BẢNG GIÁ ĐỀN BÙ THIẾT BỊ – DỰ ÁN HH12 CỔ LOA']).font={bold:true,size:14};ws.addRow([`Khấu trừ 100% đơn giá × số lượng · xuất ngày ${fmtD(today())}`]).font={italic:true};ws.addRow([]);
+      const h=ws.addRow(['Mã','Tên thiết bị','Nhóm','ĐVT','Đơn giá (đ)']);h.font={bold:true,color:{argb:'FFFFFFFF'}};h.eachCell(c=>c.fill={type:'pattern',pattern:'solid',fgColor:{argb:'FF0B2545'}});
+      Object.entries(CATS).forEach(([k,l])=>{ws.addRow([k.toUpperCase()]).font={bold:true};l.forEach(x=>{const r=ws.addRow([x[0],x[1],x[3],x[2],Number(G[x[0]])||null]);r.getCell(5).numFmt='#,##0';});});
+      const buf=await wb.xlsx.writeBuffer();await deliverFile('Bang-gia-den-bu_'+PROJECT_CODE+'_'+today()+'.xlsx',new Blob([buf],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}),'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');};
+    renderGia.gia=()=>{if(gDirty){meta();return;}G={...BB_GIA};meta();sum();draw();};
+  };
   const openRec=async(id,btn)=>{const r=all.find(x=>x.id===id);if(!r)return;if(btn)btn.disabled=true;
     try{const [ph,fl]=await Promise.all([DB.getBbpPhotos(r.id),DB.getBbpFiles(r.id)]);bbViewer(all,r,ph,fl,r.status==='cho_duyet'&&ME.isAdmin?'approve':'view');}catch(e){toast('Không mở được: '+(e.code||e.message));}
     if(btn)btn.disabled=false;};
-  const R={lap:renderLap,duyet:renderDuyet,luu:renderLuu,tong:renderTong};
+  const R={lap:renderLap,duyet:renderDuyet,luu:renderLuu,tong:renderTong,gia:renderGia};
   R[tab]();
   const un=DB.watchBbp(list=>{all=list;drawTabs();const f=R[tab];if(tab==='duyet')renderDuyet();else if(f.refresh)f.refresh();},e=>toast('Lỗi tải biên bản: '+(e.code||e.message)));
-  unwatch=()=>{try{un&&un();}catch(e){}};
+  const ung=DB.watchBbpGia(d=>{BB_GIA={...BB_GIA_DEF,...((d&&d.items)||{})};BB_GIA_META=d;const f=R[tab];if(f.gia)f.gia();},e=>{});
+  unwatch=()=>{try{un&&un();}catch(e){}try{ung&&ung();}catch(e){}};
 }
 
 /* ---------- Xem / duyệt ---------- */
@@ -1693,6 +1814,7 @@ function bbViewer(all,rec,photos,files,mode){
   if(mode==='approve'){const sig=ME.profile&&ME.profile.signature;
     a=`<div class="panel" style="margin:0;padding:12px"><h3 class="g">Kiểm tra số tiền (sửa được trong khung của lần vi phạm)</h3>
       ${(R.rows||[]).map((x,i)=>{const v=BB_VM[x.code],[lo,hi]=bbTier(v,x.lan).map(z=>z*1e6);return `<div class="grid" style="align-items:end"><div><b>${x.code}</b> ${esc(v.n)}<br><span class="hint">Lần ${x.lan} · ${BB_MUC[x.muc]} · khung ${bbVnd(lo)} – ${bbVnd(hi)} đ</span></div><label class="f" for="ap${i}">Số tiền duyệt<input id="ap${i}" data-ap="${i}" inputmode="numeric" style="font-weight:700" value="${bbVnd(x.tien)}"></label></div>`;}).join('')}
+      ${(()=>{const it=bbDbItems(R);return it.length||bbInt(R.denBu)?`<div class="hint" style="margin:6px 0"><b>Đền bù:</b> ${it.map(x=>`${x.code==='__k'?'':x.code+' '}${esc(x.ten)} ${bbSlFmt(x.sl)} ${esc(x.dvt)} × ${bbVnd(x.gia)}${x.code!=='__k'&&bbGia(x.code)&&bbGia(x.code)!==x.gia?` <span style="color:var(--bad)">(bảng giá hiện tại ${bbVnd(bbGia(x.code))})</span>`:''} = <b>${bbVnd(x.tt)} đ</b>`).join('; ')}${bbInt(R.denBu)?`; chi phí khác ${bbVnd(bbInt(R.denBu))} đ`:''} → tổng đền bù <b>${bbVnd(bbDbOf(R))} đ</b>. Sai thì trả lại người lập.</div>`:'';})()}
       <label class="f" for="apNote">Ý kiến CHP (in vào ghi chú, không bắt buộc)<input id="apNote"></label></div>
      ${sig?`<div class="row"><div class="sigprev" style="max-width:200px"><img src="${sig}" alt="Chữ ký CHP"></div><span class="hint">Ký duyệt bằng chữ ký đã khai báo.</span></div>`:'<div class="warnbox"><b style="color:var(--bad)">Anh chưa khai báo chữ ký.</b> <a href="#/ho-so">Khai báo chữ ký</a> rồi quay lại duyệt.</div>'}
      <div class="row"><button type="button" class="btn red" id="apOk"${sig?'':' disabled'}>Ký duyệt &amp; xuất PDF</button><button type="button" class="btn" id="apNo" style="color:var(--bad);border-color:var(--bad)">Trả lại người lập</button></div>
@@ -1701,7 +1823,7 @@ function bbViewer(all,rec,photos,files,mode){
   if(mode==='view'&&R.status==='da_duyet')a=`<div class="row"><button type="button" class="btn red" id="bvPdf">PDF / gửi Zalo</button><span class="hint">Duyệt lúc ${esc(fmtDT(R.duyet&&R.duyet.at))}</span></div>`;
   $('bvAct').innerHTML=a;
   const msg=(t,k)=>{const m=$('apMsg');if(!m)return;m.hidden=!t;m.className='msg '+(k||'');m.textContent=t||'';};
-  const recalc=()=>{R.tongPhat=(R.rows||[]).reduce((s,x)=>s+x.tien,0);R.tongCong=R.tongPhat+bbInt(R.denBu);};
+  const recalc=()=>{R.tongPhat=(R.rows||[]).reduce((s,x)=>s+x.tien,0);R.tongCong=R.tongPhat+bbDbOf(R);};
   if(mode==='approve'){
     $('bvAct').addEventListener('change',e=>{const i=e.target.dataset.ap;if(i==null)return;const x=R.rows[+i],[lo,hi]=bbTier(BB_VM[x.code],x.lan).map(z=>z*1e6);x.tien=Math.min(hi,Math.max(lo,bbInt(e.target.value)));e.target.value=bbVnd(x.tien);recalc();paint();});
     $('apNo').onclick=()=>{$('apNoBox').hidden=false;$('apWhy').focus();};
