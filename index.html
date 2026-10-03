@@ -245,12 +245,24 @@ pre.bb-gen{margin:0;white-space:pre-wrap;font:14px/1.55 "Times New Roman",Times,
 .bbs .bb-ib{flex:1;min-height:0;border:1px solid #bbb;display:flex;align-items:center;justify-content:center;background:#fafafa}
 .bbs .bb-ph img{max-width:100%;max-height:100%;object-fit:contain}.bbs .bb-ph figcaption{font-size:12.5px;line-height:1.3}
 .bbs .bb-pgn{text-align:right;font-size:11px;color:#555;padding-top:4px}
+
+/* ===== Menu nhóm Vật tư_Thiết Bị ===== */
+.nav{flex-wrap:nowrap}
+.nav a{padding:12px 10px;letter-spacing:.4px}
+.subnav{background:#0e2d55;border-top:1px solid rgba(255,255,255,.08)}
+.subnav .in2{max-width:1080px;margin:0 auto;padding:0 16px;display:flex;gap:2px;overflow-x:auto;scrollbar-width:none}
+.subnav .in2::-webkit-scrollbar{display:none}
+.subnav a{padding:9px 12px;color:#b9cde6;font-size:12.5px;font-weight:600;text-decoration:none;white-space:nowrap;border-bottom:2px solid transparent}
+.subnav a:hover{color:#fff}.subnav a.on{color:#fff;border-bottom-color:#4e97d9}
+.vt-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px;margin-top:14px}
+.vt-tile{display:flex;flex-direction:column;gap:6px;padding:16px;border:1px solid var(--line);border-radius:14px;background:#fff;text-decoration:none;color:var(--ink)}
+.vt-tile b{color:var(--navy);font-size:16px}.vt-tile span{color:var(--muted);font-size:13px;line-height:1.45}.vt-tile:hover{border-color:var(--blue);box-shadow:0 4px 14px rgba(11,37,69,.08)}
 </style></head><body>
 <header class="hd"><div class="in">
   <a class="logo" href="#/"><i>N</i><span><b>NEWTECONS · HH12</b></span></a>
   <nav class="nav" id="nav" aria-label="Điều hướng"></nav>
   <div class="who" id="who"></div>
-</div></header>
+</div><nav class="subnav" id="subnav" aria-label="Mục Vật tư_Thiết Bị" hidden></nav></header>
 <div id="inapp" class="warnbox" hidden style="max-width:1048px;margin:14px auto 0">
   <b style="color:var(--bad)">Trang đang mở trong Zalo, cần mở bằng trình duyệt</b>
   <p class="hint" id="inappText" style="color:var(--ink);margin:6px 0 10px"></p>
@@ -533,13 +545,17 @@ const imgToSig=file=>new Promise((res,rej)=>{const fr=new FileReader();fr.onerro
     if(al>0.02){a[i]=Math.round(r*.8);a[i+1]=Math.round(g*.85);a[i+2]=Math.round(b*.95);a[i+3]=Math.round(Math.pow(al,.8)*255);if(al>.3){cnt++;if(x<x0)x0=x;if(x>x1)x1=x;if(y<y0)y0=y;if(y>y1)y1=y;}}else a[i+3]=0;}
   if(cnt<30||x1<=x0||y1<=y0){rej(new Error('không thấy nét chữ ký trong ảnh'));return;}
   cx.putImageData(d,0,0);const pd=6,c2=document.createElement('canvas');c2.width=x1-x0+1+pd*2;c2.height=y1-y0+1+pd*2;c2.getContext('2d').drawImage(cv,x0,y0,x1-x0+1,y1-y0+1,pd,pd,x1-x0+1,y1-y0+1);res(c2.toDataURL('image/png'));};im.src=fr.result;};fr.readAsDataURL(file);});
+const VT_ROUTES=['vat-tu','tao','thep-nhap','thep-tonghop','thong-ke','ncc','duyet','tatca','phieu'];
+const vtItems=()=>{const m=ME.member||ME.isAdmin,a=[['tao','Lập phiếu'],['thep-nhap','Gửi ảnh thép'],['thep-tonghop','Tổng hợp thép']];if(m)a.push(['thong-ke','Thống kê']);if(canNcc())a.push(['ncc','Trả NCC']);if(m)a.push(['duyet','Chờ ký'],['tatca','Tất cả phiếu']);return a;};
 function renderChrome(){
   const r=(location.hash.replace(/^#\/?/,'').split('/')[0])||'';
-  const items=[['','Trang chủ'],['tao','Lập phiếu'],['thep-nhap','Gửi ảnh thép'],['thep-tonghop','Tổng hợp thép']];if(ME.member||ME.isAdmin)items.push(['thong-ke','Thống kê']);
-  if(canNcc())items.push(['ncc','Trả NCC']);
-  if(ME.member||ME.isAdmin){items.push(['duyet','Chờ ký'],['tatca','Tất cả phiếu'],['bien-ban','Biên bản phạt'],['ho-so','Chữ ký']);}
-  if(ME.isAdmin)items.push(['quan-tri','Quản trị']);
-  $('nav').innerHTML=items.map(([k,l])=>`<a href="#/${k}" class="${k===r?'on':''}">${l}</a>`).join('');
+  const m=ME.member||ME.isAdmin,inVT=VT_ROUTES.includes(r);
+  const items=[['','Trang chủ',r===''],['vat-tu','Vật tư_Thiết Bị',inVT]];
+  if(m)items.push(['bien-ban','Biên bản hiện trường',r==='bien-ban'],['ho-so','Chữ ký',r==='ho-so']);
+  if(ME.isAdmin)items.push(['quan-tri','Quản trị',r==='quan-tri']);
+  $('nav').innerHTML=items.map(([k,l,on])=>`<a href="#/${k}" class="${on?'on':''}">${l}</a>`).join('');
+  const sn=$('subnav');sn.hidden=!inVT;
+  sn.innerHTML=inVT?`<div class="in2">${vtItems().map(([k,l])=>`<a href="#/${k}" class="${k===r||(r==='phieu'&&k==='tatca')?'on':''}">${l}</a>`).join('')}</div>`:'';
   $('who').innerHTML=U?`<small title="${esc(U.email)}">${esc(ME.name||U.name)}</small><button class="btn sm" id="btnOut">Thoát</button>`:`<button class="btn blue sm" id="btnIn">Đăng nhập Google</button>`;
   if($('btnIn'))$('btnIn').onclick=login;
   if($('btnOut'))$('btnOut').onclick=()=>DB.signOut();
@@ -561,6 +577,19 @@ async function onAuth(u){
 }
 const needLogin=(msg)=>{app.innerHTML=`<div class="panel"><h2>Cần đăng nhập</h2><p class="hint">${msg}</p><div class="row"><button class="btn blue" id="goIn">Đăng nhập Google</button></div></div>`;$('goIn').onclick=login;};
 const needMember=()=>{app.innerHTML=`<div class="panel"><h2>Tài khoản chưa được cấp quyền ký</h2><p class="hint">Bạn đang đăng nhập bằng <b>${esc(U.email)}</b>. Gửi email này cho quản trị (${ADMIN}) để được thêm vào danh sách cấp duyệt và gán vai trò.</p></div>`;};
+
+/* ===================== Nhóm Vật tư_Thiết Bị ===================== */
+function viewVatTu(){
+  const D={tao:'Lập phiếu xuất kho, trả kho, dự trù thiết bị — ký online nhiều cấp, xuất PDF.',
+    'thep-nhap':'Đội thi công chụp biên bản giao nhận thép gửi lên, máy chủ tự đọc số liệu.',
+    'thep-tonghop':'Thép các đội đã nhận, duyệt số liệu máy đọc, xuất Excel.',
+    'thong-ke':'Thống kê xuất / trả / đang nhận thiết bị theo đội, xuất Excel.',
+    ncc:'Phiếu trả vật tư thiết bị nhà cung cấp ra cổng.',
+    duyet:'Các phiếu đang chờ bạn ký.',tatca:'Tra cứu toàn bộ phiếu đã lập.'};
+  app.innerHTML=`<div class="eyebrow">Dự án HH12 Cổ Loa</div><h2 style="margin:4px 0 4px;font-size:26px;color:var(--navy)">Vật tư_Thiết Bị</h2>
+   <p class="hint">Chọn chức năng bên dưới hoặc trên thanh menu phụ.</p>
+   <div class="vt-grid">${vtItems().map(([k,l])=>`<a class="vt-tile" href="#/${k}"><b>${l}</b><span>${D[k]||''}</span></a>`).join('')}</div>`;
+}
 
 /* ===================== Trang chủ ===================== */
 async function viewHome(){
@@ -1437,13 +1466,13 @@ async function bbExcel(list,info){
 
 /* ---------- Trang biên bản ---------- */
 function viewBbp(tab){
-  if(!U)return needLogin('Biên bản phạt chỉ dành cho cán bộ NTC. Đăng nhập bằng tài khoản Google đã được cấp quyền.');
+  if(!U)return needLogin('Biên bản hiện trường chỉ dành cho cán bộ NTC. Đăng nhập bằng tài khoản Google đã được cấp quyền.');
   if(!ME.member&&!ME.isAdmin)return needMember();
   tab=['lap','duyet','luu','tong'].includes(tab)?tab:(canBbp()?'lap':'luu');
   let all=[],cur=null,photos=[],files={},ntpPad=null,dirtyPhotos=false,ldT=null,lanSig='',needPh=false;
   const saveLocal=()=>{clearTimeout(ldT);ldT=setTimeout(()=>{try{if(cur)localStorage.setItem('bbp-cur',JSON.stringify({cur,sigNtp:files.sigNtp||''}));}catch(e){}},400);};
   const T=(k,l,n)=>`<button type="button" data-tab="${k}" class="btn sm ${tab===k?'blue':''}">${l}${n?` <span class="badge b-rejected" style="padding:1px 8px">${n}</span>`:''}</button>`;
-  app.innerHTML=`<div class="eyebrow">Vi phạm quy định quản lý, sử dụng VTTB · Phụ lục mức xử phạt</div><h2 style="margin:4px 0 12px;font-size:26px;color:var(--navy)">Biên bản phạt NTP-ĐTC</h2>
+  app.innerHTML=`<div class="eyebrow">Biên bản hiện trường · Vi phạm quy định quản lý, sử dụng VTTB</div><h2 style="margin:4px 0 12px;font-size:26px;color:var(--navy)">Biên bản phạt NTP-ĐTC</h2>
    <nav class="row" id="bbTabs" aria-label="Mục biên bản"></nav><div id="bbBody"></div>`;
   const drawTabs=()=>{const n=all.filter(r=>r.status==='cho_duyet').length;$('bbTabs').innerHTML=(canBbp()?T('lap','Lập biên bản'):'')+T('duyet','Chờ duyệt',n)+T('luu','Đã duyệt')+T('tong','Tổng hợp theo đội');};
   drawTabs();
@@ -1849,6 +1878,7 @@ function route(){
   if(p==='thep-nhap')return viewSteelUpload();
   if(p==='thep-tonghop')return viewSteelSummary();
   if(p==='bien-ban')return viewBbp(parts[1]);
+  if(p==='vat-tu')return viewVatTu();
   if(p==='ho-so')return viewProfile();
   if(p==='quan-tri')return viewAdmin();
   viewHome();
