@@ -542,7 +542,10 @@ const mySlips=()=>{try{return JSON.parse(localStorage.getItem('mySlips')||'[]');
 const remember=o=>{try{const a=mySlips().filter(x=>x.id!==o.id);a.unshift(o);localStorage.setItem('mySlips',JSON.stringify(a.slice(0,30)));}catch(e){}};
 const cur=s=>s.steps[s.currentStep];
 const badge=s=>`<span class="badge b-${s.status}">${s.status==='pending'&&cur(s)?'Chờ: '+esc(cur(s).label):STATUS[s.status]}</span>`;
-const who=s=>s.head.doi||s.head.don_vi||'';
+/* tên cũ / gõ khác của cùng 1 đội → gộp về tên chuẩn khi thống kê, tổng hợp */
+const DOI_ALIAS={'nhật minh':'Nhật Minh (hoàn thiện)','an bình':'An Bình (hoàn thiện)','dp cons':'DPCONS','dpcons':'DPCONS'};
+const doiStd=d=>{const k=String(d||'').normalize('NFC').trim().toLowerCase().replace(/\s+/g,' ');return DOI_ALIAS[k]||d;};
+const who=s=>doiStd(s.head.doi||s.head.don_vi||'');
 const slipLink=id=>location.origin+location.pathname+'#/phieu/'+id;
 const canNcc=()=>!!(U&&ME.member&&(ME.isAdmin||ME.roles.includes('thu_kho')));
 const isMyTurn=s=>ME.member&&s.status==='pending'&&cur(s)&&ME.roles.includes(cur(s).role);
@@ -1496,7 +1499,7 @@ async function bbExcel(list,info){
   const head=(ws,r,cols)=>{cols.forEach((h,i)=>cell(ws,r,i+1,h,{bold:true,color:'FFFFFFFF',fill:NAVY}));ws.getRow(r).height=32;};
   const title=(ws,t,n)=>{ws.getCell(1,1).value=t;ws.mergeCells(1,1,1,n);ws.getCell(1,1).font={name:FN,bold:true,size:14,color:{argb:NAVY}};ws.getCell(2,1).value=`Dự án HH12 Cổ Loa · ${info} · chỉ tính biên bản đã được CHP duyệt · xuất ngày ${fmtD(today())}`;ws.mergeCells(2,1,2,n);ws.getCell(2,1).font={name:FN,italic:true};};
   // 1. Tổng hợp theo đội
-  const M=new Map();list.forEach(r=>{const k=r.doi;if(!M.has(k))M.set(k,{doi:k,bb:0,loi:0,phat:0,db:0,lan:0});const o=M.get(k);o.bb++;o.loi+=(r.rows||[]).length;o.phat+=r.tongPhat||0;o.db+=bbDbOf(r);(r.rows||[]).forEach(x=>{o.lan=Math.max(o.lan,x.lan||1);});});
+  const M=new Map();list.forEach(r=>{const k=doiStd(r.doi);if(!M.has(k))M.set(k,{doi:k,bb:0,loi:0,phat:0,db:0,lan:0});const o=M.get(k);o.bb++;o.loi+=(r.rows||[]).length;o.phat+=r.tongPhat||0;o.db+=bbDbOf(r);(r.rows||[]).forEach(x=>{o.lan=Math.max(o.lan,x.lan||1);});});
   const T=[...M.values()].sort((a,b)=>(b.phat+b.db)-(a.phat+a.db));
   const w0=wb.addWorksheet('Tong hop theo doi');[6,28,10,10,16,16,18,26].forEach((w,i)=>w0.getColumn(i+1).width=w);
   title(w0,'TỔNG HỢP PHẠT VI PHẠM QUẢN LÝ, SỬ DỤNG VTTB THEO ĐỘI',8);
@@ -1765,7 +1768,7 @@ function viewBbp(tab){
       <div class="row"><label class="f" for="tT" style="width:200px">Tháng (để trống = cả dự án)<input id="tT" type="month" value="${esc(tTh)}"></label><button type="button" class="btn sm red" id="tX" style="align-self:flex-end">Xuất Excel cho QS</button></div></div>
      <div id="tBox" class="scroll"></div><p class="hint">Chỉ tính biên bản đã được CHP duyệt. Cột "Lần cao nhất" cho biết đội đã chạm mức lần 3 (mời ra khỏi công trường) hay chưa.</p></section>`;
     const list=()=>all.filter(r=>r.status==='da_duyet'&&(!tTh||String(r.ngay||'').startsWith(tTh)));
-    const draw=()=>{const M=new Map();list().forEach(r=>{const k=r.doi;if(!M.has(k))M.set(k,{doi:k,bb:0,loi:0,phat:0,db:0,tong:0,lan:0});const o=M.get(k);o.bb++;o.loi+=(r.rows||[]).length;o.phat+=r.tongPhat||0;o.db+=bbDbOf(r);o.tong+=r.tongCong||0;(r.rows||[]).forEach(x=>{o.lan=Math.max(o.lan,x.lan||1);});});
+    const draw=()=>{const M=new Map();list().forEach(r=>{const k=doiStd(r.doi);if(!M.has(k))M.set(k,{doi:k,bb:0,loi:0,phat:0,db:0,tong:0,lan:0});const o=M.get(k);o.bb++;o.loi+=(r.rows||[]).length;o.phat+=r.tongPhat||0;o.db+=bbDbOf(r);o.tong+=r.tongCong||0;(r.rows||[]).forEach(x=>{o.lan=Math.max(o.lan,x.lan||1);});});
       const rows=[...M.values()].sort((a,b)=>b.tong-a.tong),s=rows.reduce((a,o)=>({bb:a.bb+o.bb,loi:a.loi+o.loi,phat:a.phat+o.phat,db:a.db+o.db,tong:a.tong+o.tong}),{bb:0,loi:0,phat:0,db:0,tong:0});
       $('tBox').innerHTML=rows.length?`<table class="t"><thead><tr><th>Đội / nhà thầu</th><th>Số BB</th><th>Số lỗi</th><th>Tiền phạt</th><th>Đền bù</th><th>Tổng khấu trừ</th><th>Lần cao nhất</th></tr></thead><tbody>${rows.map(o=>`<tr><td>${esc(o.doi)}</td><td>${o.bb}</td><td>${o.loi}</td><td>${bbVnd(o.phat)}</td><td>${bbVnd(o.db)}</td><td><b>${bbVnd(o.tong)}</b></td><td><span class="bb-chip ${o.lan>=3?'l3':o.lan===2?'l2':'l1'}">Lần ${o.lan}${o.lan>=3?' · mời ra khỏi CT':''}</span></td></tr>`).join('')}
         <tr><td><b>Tổng</b></td><td><b>${s.bb}</b></td><td><b>${s.loi}</b></td><td><b>${bbVnd(s.phat)}</b></td><td><b>${bbVnd(s.db)}</b></td><td><b>${bbVnd(s.tong)}</b></td><td></td></tr></tbody></table>`:'<p class="hint">Chưa có biên bản đã duyệt trong phạm vi này.</p>';
