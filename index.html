@@ -1752,7 +1752,7 @@ function viewBbp(tab){
       $('lList').querySelectorAll('[data-pdf]').forEach(b=>b.onclick=async()=>{const r=all.find(x=>x.id===b.dataset.pdf);if(!r)return;b.disabled=true;await bbPdf(all,r);b.disabled=false;});};
     draw();$('lD').onchange=e=>{fD=e.target.value;draw();};$('lT').oninput=e=>{fTh=e.target.value;draw();};$('lQ').oninput=e=>{fQ=e.target.value;draw();};
     renderLuu.refresh=draw;};
-  let tTh=today().slice(0,7);
+  let tTh='';
   const renderTong=()=>{
     body.innerHTML=`<section class="panel"><div class="row" style="justify-content:space-between"><h2>Tổng hợp phạt theo đội</h2>
       <div class="row"><label class="f" for="tT" style="width:200px">Tháng (để trống = cả dự án)<input id="tT" type="month" value="${esc(tTh)}"></label><button type="button" class="btn sm red" id="tX" style="align-self:flex-end">Xuất Excel cho QS</button></div></div>
@@ -1761,7 +1761,12 @@ function viewBbp(tab){
     const draw=()=>{const M=new Map();list().forEach(r=>{const k=r.doi;if(!M.has(k))M.set(k,{doi:k,bb:0,loi:0,phat:0,db:0,tong:0,lan:0});const o=M.get(k);o.bb++;o.loi+=(r.rows||[]).length;o.phat+=r.tongPhat||0;o.db+=bbDbOf(r);o.tong+=r.tongCong||0;(r.rows||[]).forEach(x=>{o.lan=Math.max(o.lan,x.lan||1);});});
       const rows=[...M.values()].sort((a,b)=>b.tong-a.tong),s=rows.reduce((a,o)=>({bb:a.bb+o.bb,loi:a.loi+o.loi,phat:a.phat+o.phat,db:a.db+o.db,tong:a.tong+o.tong}),{bb:0,loi:0,phat:0,db:0,tong:0});
       $('tBox').innerHTML=rows.length?`<table class="t"><thead><tr><th>Đội / nhà thầu</th><th>Số BB</th><th>Số lỗi</th><th>Tiền phạt</th><th>Đền bù</th><th>Tổng khấu trừ</th><th>Lần cao nhất</th></tr></thead><tbody>${rows.map(o=>`<tr><td>${esc(o.doi)}</td><td>${o.bb}</td><td>${o.loi}</td><td>${bbVnd(o.phat)}</td><td>${bbVnd(o.db)}</td><td><b>${bbVnd(o.tong)}</b></td><td><span class="bb-chip ${o.lan>=3?'l3':o.lan===2?'l2':'l1'}">Lần ${o.lan}${o.lan>=3?' · mời ra khỏi CT':''}</span></td></tr>`).join('')}
-        <tr><td><b>Tổng</b></td><td><b>${s.bb}</b></td><td><b>${s.loi}</b></td><td><b>${bbVnd(s.phat)}</b></td><td><b>${bbVnd(s.db)}</b></td><td><b>${bbVnd(s.tong)}</b></td><td></td></tr></tbody></table>`:'<p class="hint">Chưa có biên bản đã duyệt trong phạm vi này.</p>';};
+        <tr><td><b>Tổng</b></td><td><b>${s.bb}</b></td><td><b>${s.loi}</b></td><td><b>${bbVnd(s.phat)}</b></td><td><b>${bbVnd(s.db)}</b></td><td><b>${bbVnd(s.tong)}</b></td><td></td></tr></tbody></table>`:'<p class="hint">Chưa có biên bản đã duyệt trong phạm vi này.</p>';
+      const out=all.filter(r=>r.status==='da_duyet').length-list().length,pend=all.filter(r=>r.status==='cho_duyet'&&(!tTh||String(r.ngay||'').startsWith(tTh))).length,nt=[];
+      if(out>0)nt.push(`Có <b>${out}</b> biên bản đã duyệt nằm ngoài tháng đang lọc — <button type="button" class="btn sm" id="tAll">Xem cả dự án</button>`);
+      if(pend>0)nt.push(`<b>${pend}</b> biên bản đang chờ CHP duyệt (chưa tính vào tổng hợp).`);
+      $('tBox').insertAdjacentHTML('beforeend',nt.length?`<div class="msg" style="margin-top:10px">${nt.join('<br>')}</div>`:'');
+      if($('tAll'))$('tAll').onclick=()=>{tTh='';$('tT').value='';draw();};};
     draw();$('tT').oninput=e=>{tTh=e.target.value;draw();};
     $('tX').onclick=async()=>{const b=$('tX');b.disabled=true;try{await bbExcel(list(),tTh?'tháng '+tTh.split('-').reverse().join('/'):'cả dự án');}catch(e){toast('Không xuất được Excel: '+(e.message||e));}b.disabled=false;};
     renderTong.refresh=draw;};
