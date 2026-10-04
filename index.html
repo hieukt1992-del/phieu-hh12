@@ -1747,8 +1747,11 @@ function viewBbp(tab){
       <label class="f" for="lT">Tháng<input id="lT" type="month" value="${esc(fTh)}"></label><label class="f" for="lQ">Tìm số biên bản / nội dung<input id="lQ" type="search" value="${esc(fQ)}" placeholder="VD: BBP-HH12-007, giằng"></label></div>
      <div id="lList" style="display:flex;flex-direction:column;gap:8px"></div></section>`;
     const draw=()=>{const q=bbNorm(fQ),l=all.filter(r=>r.status==='da_duyet'&&(!fD||r.doi===fD)&&(!fTh||String(r.ngay||'').startsWith(fTh))&&(!q||bbNorm(r.so+' '+r.doi+' '+(r.rows||[]).map(x=>x.mota+' '+(BB_VM[x.code]||{}).n).join(' ')).includes(q))).sort((a,b)=>String(b.so).localeCompare(String(a.so)));
-      $('lList').innerHTML=l.length?l.map(r=>bbCard(r,`<button type="button" class="btn sm line" data-view="${r.id}">Xem</button><button type="button" class="btn sm red" data-pdf="${r.id}">PDF / Zalo</button>`)).join(''):'<p class="hint">Chưa có biên bản đã duyệt trong phạm vi lọc.</p>';
+      $('lList').innerHTML=l.length?l.map(r=>bbCard(r,`<button type="button" class="btn sm line" data-view="${r.id}">Xem</button><button type="button" class="btn sm red" data-pdf="${r.id}">PDF / Zalo</button>${ME.isAdmin?`<button type="button" class="btn sm" data-del="${r.id}" style="color:var(--bad);border-color:var(--bad)" aria-label="Xoá biên bản ${esc(r.so||'')}">Xoá</button>`:''}`)).join(''):'<p class="hint">Chưa có biên bản đã duyệt trong phạm vi lọc.</p>';
       $('lList').querySelectorAll('[data-view]').forEach(b=>b.onclick=()=>openRec(b.dataset.view,b));
+      $('lList').querySelectorAll('[data-del]').forEach(b=>b.onclick=async()=>{const r=all.find(x=>x.id===b.dataset.del);if(!r)return;
+        if(!confirm(`Xoá vĩnh viễn biên bản ${r.so} – ${r.doi} (${bbVnd(r.tongCong||0)} đ), gồm cả ảnh và chữ ký?\nTổng hợp theo đội và Excel sẽ tự trừ biên bản này. Không khôi phục được.`))return;
+        b.disabled=true;try{await DB.deleteBbp(r.id);toast('Đã xoá '+r.so+'. Tổng hợp đã cập nhật.');}catch(e){b.disabled=false;toast('Không xoá được: '+(e.code||e.message));}});
       $('lList').querySelectorAll('[data-pdf]').forEach(b=>b.onclick=async()=>{const r=all.find(x=>x.id===b.dataset.pdf);if(!r)return;b.disabled=true;await bbPdf(all,r);b.disabled=false;});};
     draw();$('lD').onchange=e=>{fD=e.target.value;draw();};$('lT').oninput=e=>{fTh=e.target.value;draw();};$('lQ').oninput=e=>{fQ=e.target.value;draw();};
     renderLuu.refresh=draw;};
