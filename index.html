@@ -1323,16 +1323,27 @@ const BB_V=[
 ];
 const BB_VM=Object.fromEntries(BB_V.map(v=>[v.c,v]));
 /* ---------- Đền bù thiết bị: khấu trừ 100% đơn giá × số lượng ---------- */
-const BB_GIA_DEF={}; // giá mặc định (đ/ĐVT) — điền từ bảng giá đền bù; CHP sửa trực tiếp ở mục "Bảng giá đền bù"
+/* Bảng giá đền bù HH12 (chưa VAT) — CHP gửi 04/10/2026. Xà gồ, tuýp: giá theo md, quy đổi ra cây = chiều dài × đơn giá/md */
+const BB_GIA_DEF={'RL-25':360000,'RL-20':249000,'RL-15':218000,'RL-10':180000,'GN-12':149000,'GN-06':108000,'GX-1215':167000,'GX-0615':152000,
+  'KD-38':75000,'KU-38':75000,'PK-GH':300000,'GH-CH':60000,'PK-MGH':300000,'PK-TGH':600000,'KC-34':55000,'KDU-34':55000,'TUYP':63000,'PK-CU':18000,'XG-50':77000,'XG-100':125000};
+// mã chỉ dùng cho đền bù (có trong bảng giá nhưng chưa có trong danh mục phiếu); [mã, tên, ĐVT, nhóm, đặt sau mã]
+const BB_DB_EXTRA=[['RL-20','Ringlock 2.0m','cây','Hệ giáo Ringlock','RL-25'],['XG-100','Xà gồ 50x100x1.8-2mm (theo md)','md','Thép hộp 50x100','TH100-2'],['XG-50','Xà gồ 50x50x1.8-2mm (theo md)','md','Thép hộp 50x50','TH50-2'],
+  ['TUYP','Tuýp D48x1.8mm (theo md)','md','Phụ kiện hệ chống','PK-T6'],['GH-CH','Chéo giáo H 2m','cặp','Phụ kiện hệ chống','PK-GH'],['KC-34','Kích chân D34 L500','cái','Phụ kiện hệ chống','PK-TGH'],['KDU-34','Kích đầu D34 L500','cái','Phụ kiện hệ chống','KC-34']];
+// mã tính theo mét dài: [mã giá theo md, số md/cây]
+const BB_MD={'TH100-4':['XG-100',4],'TH100-3':['XG-100',3],'TH100-2':['XG-100',2],'TH50-6':['XG-50',6],'TH50-4':['XG-50',4],'TH50-3':['XG-50',3],'TH50-2':['XG-50',2],'PK-T3':['TUYP',3],'PK-T6':['TUYP',6]};
+const BB_DB_CATS=(()=>{const k=CAT_KETCAU.map(x=>[...x]);BB_DB_EXTRA.forEach(e=>{const i=k.findIndex(x=>x[0]===e[4]);k.splice(i<0?k.length:i+1,0,e.slice(0,4));});return {'Kết cấu':k,'Phụ kiện nhôm':CAT_NHOM,'Bao che leo':CAT_BAOCHE};})();
+const BB_DB_CAT=Object.values(BB_DB_CATS).flat();
 let BB_GIA={...BB_GIA_DEF},BB_GIA_META=null;
-const bbGia=c=>Number(BB_GIA[c])||0;
-const bbCat=c=>CAT.find(x=>x[0]===c);
+const bbGiaIn=(G,c)=>{const m=BB_MD[c];return m?Math.round((Number(G[m[0]])||0)*m[1]):Number(G[c])||0;};
+const bbGia=c=>bbGiaIn(BB_GIA,c);
+const bbCat=c=>BB_DB_CAT.find(x=>x[0]===c);
 const bbSl=v=>{const n=Number(String(v??'').replace(',','.').replace(/[^\d.]/g,''));return isFinite(n)?n:0;};
 const bbSlFmt=n=>String(Math.round(n*100)/100).replace('.',',');
 const bbDbBlank=()=>({code:'',ten:'',dvt:'',sl:'',gia:0,giaTay:false});
 function bbDbItems(rec){const lock=rec.status==='cho_duyet'||rec.status==='da_duyet';
   return (rec.dbItems||[]).filter(x=>x.code).map(x=>{const c=bbCat(x.code),gT=x.code==='__k'?0:bbGia(x.code),gia=(lock||x.giaTay||!gT)?bbInt(x.gia):gT,sl=bbSl(x.sl);
-    return {...x,ten:x.code==='__k'?(x.ten||''):(c?c[1]:x.ten||''),dvt:x.code==='__k'?(x.dvt||''):(c?c[2]:x.dvt||''),gia,sl,tt:Math.round(gia*sl),coBang:!!gT};});}
+    const m=BB_MD[x.code];
+    return {...x,ten:x.code==='__k'?(x.ten||''):(c?c[1]+(m?` (quy đổi ${m[1]} md/cây × ${bbVnd(gia/m[1])} đ/md)`:''):x.ten||''),dvt:x.code==='__k'?(x.dvt||''):(c?c[2]:x.dvt||''),gia,sl,tt:Math.round(gia*sl),coBang:!!gT};});}
 const BB_DB_INLINE=3;
 const bbDbOf=r=>r.tongDenBu!=null?r.tongDenBu:bbInt(r.denBu);
 const bbNeedDb=v=>!!v&&v.a.some(a=>/^Đền bù/.test(a));
@@ -1429,9 +1440,9 @@ function bbSheets(all,rec,photos,files){
    <div class="bb-sg">${cells.map(c=>`<div><div>Ký tên:</div><div class="bb-rl">${esc(c.rl)}</div>${sig(c.img,c.refuse)}<div>Họ tên: <b>${esc(c.ten||'')}</b></div><div style="padding-top:3px">Ngày: ${esc(c.ngay)}</div></div>`).join('')}</div>
   </div>${nPages>1?`<div class="bb-pgn">Trang 1/${nPages}</div>`:''}</div>`;
   if(apx){out+=`<div class="sheet bbs"><div class="bb-fr">${bbHead(rec,'PHỤ LỤC: BẢNG TÍNH ĐỀN BÙ THIẾT BỊ')}
-     <div style="padding:12px;display:flex;flex-direction:column;gap:10px"><div>Đội / nhà thầu: <b>${esc(doi)}</b> · Khấu trừ 100% đơn giá theo Bảng giá đền bù thiết bị dự án.</div>
+     <div style="padding:12px;display:flex;flex-direction:column;gap:10px"><div>Đội / nhà thầu: <b>${esc(doi)}</b> · Khấu trừ 100% đơn giá theo Bảng giá đền bù thiết bị dự án (đơn giá chưa gồm VAT).</div>
      <table class="bb-dbt"><thead><tr><th style="width:34px">STT</th><th>Mã</th><th>Tên thiết bị</th><th>ĐVT</th><th>Số lượng</th><th>Đơn giá (đ)</th><th>Thành tiền (đ)</th></tr></thead><tbody>
-     ${tt.dbI.map((x,i)=>`<tr><td style="text-align:center">${i+1}</td><td>${x.code==='__k'?'':esc(x.code)}</td><td>${esc(x.ten)}</td><td style="text-align:center">${esc(x.dvt)}</td><td class="n">${bbSlFmt(x.sl)}</td><td class="n">${bbVnd(x.gia)}</td><td class="n">${bbVnd(x.tt)}</td></tr>`).join('')}
+     ${tt.dbI.map((x,i)=>`<tr><td style="text-align:center">${i+1}</td><td style="white-space:nowrap">${x.code==='__k'?'':esc(x.code)}</td><td>${esc(x.ten)}</td><td style="text-align:center">${esc(x.dvt)}</td><td class="n">${bbSlFmt(x.sl)}</td><td class="n">${bbVnd(x.gia)}</td><td class="n">${bbVnd(x.tt)}</td></tr>`).join('')}
      <tr class="sum"><td colspan="6">Cộng đền bù thiết bị</td><td class="n">${bbVnd(tt.dbTB)}</td></tr>
      ${tt.dbKhac?`<tr><td colspan="6">Chi phí phát sinh khác${rec.denBuGhiChu?' ('+esc(rec.denBuGhiChu)+')':''}</td><td class="n">${bbVnd(tt.dbKhac)}</td></tr>`:''}
      <tr><td colspan="6">Tiền phạt vi phạm</td><td class="n">${bbVnd(tt.phat)}</td></tr>
@@ -1607,14 +1618,14 @@ function viewBbp(tab){
          ${r.v?`<div><h3 class="g">Hành động kèm theo</h3><ul style="margin:4px 0 0;padding-left:18px;font-size:13px">${r.v.a.map(a=>`<li>${esc(a)}</li>`).join('')}${r.v.a3?`<li${r.lan>=3?' style="color:var(--bad);font-weight:700"':''}>${esc(r.v.a3)}</li>`:''}</ul></div>`:''}</div>`;}).join('');
       sumGen(t,rows);
     };
-    const dbOpts=c=>Object.entries(CATS).map(([g,l])=>`<optgroup label="${esc(g)}">${l.map(x=>{const gg=bbGia(x[0]);return `<option value="${x[0]}"${x[0]===c?' selected':''}>${x[0]} – ${esc(x[1])} (${esc(x[2])}) · ${gg?bbVnd(gg)+' đ':'chưa có giá'}</option>`;}).join('')}</optgroup>`).join('')+`<option value="__k"${c==='__k'?' selected':''}>Thiết bị khác (nhập tay tên, ĐVT, đơn giá)</option>`;
+    const dbOpts=c=>Object.entries(BB_DB_CATS).map(([g,l])=>`<optgroup label="${esc(g)}">${l.map(x=>{const gg=bbGia(x[0]);return `<option value="${x[0]}"${x[0]===c?' selected':''}>${x[0]} – ${esc(x[1])} (${esc(x[2])}) · ${gg?bbVnd(gg)+' đ':'chưa có giá'}</option>`;}).join('')}</optgroup>`).join('')+`<option value="__k"${c==='__k'?' selected':''}>Thiết bị khác (nhập tay tên, ĐVT, đơn giá)</option>`;
     const dbRows=()=>{cur.dbItems=cur.dbItems||[];
       $('bDbRows').innerHTML=cur.dbItems.length?cur.dbItems.map((x,i)=>{const k=x.code==='__k',c=bbCat(x.code),gT=k?0:bbGia(x.code),gia=(x.giaTay||!gT)?bbInt(x.gia):gT,tt=Math.round(gia*bbSl(x.sl));
         return `<div class="bb-dbr" data-di="${i}">
          <label class="f c1" for="dc${i}">Thiết bị ${i+1} *<select id="dc${i}" data-d="code"><option value="">— Chọn thiết bị —</option>${dbOpts(x.code)}</select>${k?`<input data-d="ten" id="dn${i}" placeholder="Tên thiết bị" value="${esc(x.ten||'')}" style="margin-top:6px">`:''}</label>
          <label class="f" for="du${i}">ĐVT<input id="du${i}" data-d="dvt" value="${esc(k?(x.dvt||''):(c?c[2]:''))}"${k?'':' disabled'}></label>
          <label class="f" for="ds${i}">Số lượng *<input id="ds${i}" data-d="sl" inputmode="decimal" value="${esc(x.sl)}" placeholder="0"></label>
-         <label class="f" for="dg${i}">Đơn giá (đ) ${gT&&!x.giaTay?'':'*'}<input id="dg${i}" data-d="gia" inputmode="numeric" value="${gia?bbVnd(gia):''}"${gT?' disabled title="Theo bảng giá đền bù"':''} placeholder="Nhập giá">${x.code&&!k&&!gT?'<span class="nog">Ngoài bảng giá – nhập tay</span>':''}</label>
+         <label class="f" for="dg${i}">Đơn giá (đ) ${gT&&!x.giaTay?'':'*'}<input id="dg${i}" data-d="gia" inputmode="numeric" value="${gia?bbVnd(gia):''}"${gT?' disabled title="Theo bảng giá đền bù"':''} placeholder="Nhập giá">${x.code&&!k&&!gT?'<span class="nog">Ngoài bảng giá – nhập tay</span>':''}${BB_MD[x.code]&&gT?`<span class="hint" style="font-size:11.5px">= ${BB_MD[x.code][1]} md × ${bbVnd(gT/BB_MD[x.code][1])} đ/md</span>`:''}</label>
          <div class="tt">Thành tiền<b data-tt>${bbVnd(tt)} đ</b></div>
          <button type="button" class="btn sm" data-deldb="${i}" aria-label="Xoá thiết bị ${i+1}" title="Xoá">✕</button></div>`;}).join(''):'<p class="hint" style="margin:0">Chưa có thiết bị đền bù.</p>';};
     const sumGen=(t,rows)=>{t=t||bbTotals(all,cur);rows=rows||t.rows;
@@ -1758,9 +1769,9 @@ function viewBbp(tab){
   let G=null,gDirty=false,gQ='',gH='',gF='';
   const renderGia=()=>{const ad=ME.isAdmin;G={...BB_GIA};gDirty=false;
     body.innerHTML=`<section class="panel"><div class="row" style="justify-content:space-between"><h2>Bảng giá đền bù thiết bị</h2><span class="hint" id="gMeta"></span></div>
-     <p class="hint">Dùng để tính tiền đền bù khi NTP/ĐTC làm hư hỏng, mất thiết bị: <b>thành tiền = đơn giá × số lượng</b> (khấu trừ 100%), cộng thẳng vào tổng khấu trừ của biên bản. ${ad?'Chỉ CHP sửa được. Biên bản đã gửi duyệt giữ nguyên giá tại thời điểm gửi.':'Chỉ CHP sửa bảng giá; thiết bị chưa có giá thì thủ kho nhập tay trong biên bản.'}</p>
+     <p class="hint">Dùng để tính tiền đền bù khi NTP/ĐTC làm hư hỏng, mất thiết bị: <b>thành tiền = đơn giá × số lượng</b> (khấu trừ 100%), cộng thẳng vào tổng khấu trừ của biên bản. Đơn giá <b>chưa gồm VAT</b>. Xà gồ, tuýp nhập giá theo <b>md</b>; mã theo cây tự quy đổi = chiều dài × đơn giá/md. ${ad?'Chỉ CHP sửa được. Biên bản đã gửi duyệt giữ nguyên giá tại thời điểm gửi.':'Chỉ CHP sửa bảng giá; thiết bị chưa có giá thì thủ kho nhập tay trong biên bản.'}</p>
      <div class="grid"><label class="f" for="gQ">Tìm mã / tên<input id="gQ" type="search" value="${esc(gQ)}" placeholder="VD: RL-25, giằng, la dẹt"></label>
-      <label class="f" for="gH">Hạng mục<select id="gH"><option value="">Tất cả</option>${Object.keys(CATS).map(k=>`<option${k===gH?' selected':''}>${esc(k)}</option>`).join('')}</select></label>
+      <label class="f" for="gH">Hạng mục<select id="gH"><option value="">Tất cả</option>${Object.keys(BB_DB_CATS).map(k=>`<option${k===gH?' selected':''}>${esc(k)}</option>`).join('')}</select></label>
       <label class="f" for="gF">Hiển thị<select id="gF"><option value="">Tất cả mã</option><option value="0"${gF==='0'?' selected':''}>Chưa có giá</option><option value="1"${gF==='1'?' selected':''}>Đã có giá</option></select></label></div>
      <div class="bb-sum" id="gSum" style="margin:10px 0"></div>
      ${ad?`<details style="margin-bottom:10px"><summary style="cursor:pointer;font-weight:700;color:var(--navy)">Dán nhanh từ Excel (cột Mã và Đơn giá)</summary>
@@ -1769,26 +1780,27 @@ function viewBbp(tab){
      <div class="scroll"><table class="t gtab"><thead><tr><th>Mã</th><th>Tên thiết bị</th><th>Nhóm</th><th>ĐVT</th><th style="text-align:right">Đơn giá đền bù (đ)</th></tr></thead><tbody id="gBody"></tbody></table></div>
      <div class="row" style="margin-top:12px">${ad?'<button type="button" class="btn red" id="gSave">Lưu bảng giá</button>':''}<button type="button" class="btn" id="gXls">Xuất Excel bảng giá</button><span id="gMsg" class="hint"></span></div></section>`;
     const meta=()=>{$('gMeta').textContent=BB_GIA_META&&BB_GIA_META.updatedAt?`Cập nhật ${fmtDT(BB_GIA_META.updatedAt)}${BB_GIA_META.by?' · '+BB_GIA_META.by:''}`:'Chưa lưu lần nào';};
-    const sum=()=>{const n=CAT.length,c=CAT.filter(x=>Number(G[x[0]])>0).length;$('gSum').innerHTML=`<div><span>Tổng số mã</span><b>${n}</b></div><div><span>Đã có giá</span><b>${c}</b></div><div><span>Chưa có giá</span><b style="color:${n-c?'var(--bad)':'inherit'}">${n-c}</b></div>`;};
-    const draw=()=>{const q=bbNorm(gQ),rows=Object.entries(CATS).filter(([k])=>!gH||k===gH).flatMap(([k,l])=>l.map(x=>[...x,k])).filter(x=>(!q||bbNorm(x[0]+' '+x[1]+' '+x[3]).includes(q))&&(!gF||(gF==='1')===(Number(G[x[0]])>0)));
-      $('gBody').innerHTML=rows.length?rows.map(x=>{const g=Number(G[x[0]])||0;return `<tr><td><b>${esc(x[0])}</b></td><td>${esc(x[1])}</td><td>${esc(x[3])}</td><td>${esc(x[2])}</td><td style="text-align:right">${ad?`<input class="gia-in" data-g="${esc(x[0])}" inputmode="numeric" aria-label="Đơn giá ${esc(x[0])}" value="${g?bbVnd(g):''}" placeholder="—">`:(g?`<b>${bbVnd(g)}</b>`:'<span class="hint">chưa có</span>')}</td></tr>`;}).join(''):'<tr><td colspan="5" class="hint">Không có mã phù hợp.</td></tr>';};
+    const sum=()=>{const n=BB_DB_CAT.length,c=BB_DB_CAT.filter(x=>bbGiaIn(G,x[0])>0).length;$('gSum').innerHTML=`<div><span>Tổng số mã</span><b>${n}</b></div><div><span>Đã có giá</span><b>${c}</b></div><div><span>Chưa có giá</span><b style="color:${n-c?'var(--bad)':'inherit'}">${n-c}</b></div>`;};
+    const draw=()=>{const q=bbNorm(gQ),rows=Object.entries(BB_DB_CATS).filter(([k])=>!gH||k===gH).flatMap(([k,l])=>l.map(x=>[...x,k])).filter(x=>(!q||bbNorm(x[0]+' '+x[1]+' '+x[3]).includes(q))&&(!gF||(gF==='1')===(bbGiaIn(G,x[0])>0)));
+      $('gBody').innerHTML=rows.length?rows.map(x=>{const g=Number(G[x[0]])||0,m=BB_MD[x[0]];if(m){const gm=Number(G[m[0]])||0;return `<tr><td><b>${esc(x[0])}</b></td><td>${esc(x[1])}</td><td>${esc(x[3])}</td><td>${esc(x[2])}</td><td style="text-align:right">${gm?`<b>${bbVnd(gm*m[1])}</b><br><span class="hint" style="font-size:11.5px">= ${m[1]} md × ${bbVnd(gm)} (${esc(m[0])})</span>`:`<span class="hint">theo giá ${esc(m[0])}/md</span>`}</td></tr>`;}
+        return `<tr><td><b>${esc(x[0])}</b></td><td>${esc(x[1])}</td><td>${esc(x[3])}</td><td>${esc(x[2])}</td><td style="text-align:right">${ad?`<input class="gia-in" data-g="${esc(x[0])}" inputmode="numeric" aria-label="Đơn giá ${esc(x[0])}" value="${g?bbVnd(g):''}" placeholder="—">`:(g?`<b>${bbVnd(g)}</b>`:'<span class="hint">chưa có</span>')}</td></tr>`;}).join(''):'<tr><td colspan="5" class="hint">Không có mã phù hợp.</td></tr>';};
     meta();sum();draw();
     $('gQ').oninput=e=>{gQ=e.target.value;draw();};$('gH').onchange=e=>{gH=e.target.value;draw();};$('gF').onchange=e=>{gF=e.target.value;draw();};
     if(ad){
       $('gBody').addEventListener('input',e=>{const c=e.target.dataset.g;if(!c)return;const v=bbInt(e.target.value);if(v)G[c]=v;else delete G[c];gDirty=true;$('gMsg').textContent='Có thay đổi chưa lưu.';sum();});
       $('gBody').addEventListener('change',e=>{const c=e.target.dataset.g;if(c)e.target.value=G[c]?bbVnd(G[c]):'';});
       $('gPasteGo').onclick=()=>{const lines=$('gPaste').value.split(/\r?\n/).map(l=>l.trim()).filter(Boolean),bad=[];let ok=0;
-        lines.forEach(l=>{const parts=l.split(/\t|;|\s{2,}/).map(x=>x.trim()).filter(Boolean),code=(parts[0]||'').toUpperCase().replace(/\s+/g,''),c=CAT.find(x=>x[0].toUpperCase()===code),v=bbInt(parts[parts.length-1]);
-          if(c&&v&&parts.length>1){G[c[0]]=v;ok++;}else bad.push(l.slice(0,30));});
+        lines.forEach(l=>{const parts=l.split(/\t|;|\s{2,}/).map(x=>x.trim()).filter(Boolean),code=(parts[0]||'').toUpperCase().replace(/\s+/g,''),c=BB_DB_CAT.find(x=>x[0].toUpperCase()===code),v=bbInt(parts[parts.length-1]);
+          if(c&&v&&parts.length>1&&!BB_MD[c[0]]){G[c[0]]=v;ok++;}else bad.push(l.slice(0,30));});
         gDirty=gDirty||ok>0;$('gPasteMsg').textContent=`Đã áp ${ok} mã.`+(bad.length?` Không nhận ${bad.length} dòng: ${bad.slice(0,5).join(' | ')}`:'')+(ok?' Bấm "Lưu bảng giá" để lưu.':'');sum();draw();};
       $('gSave').onclick=async()=>{const b=$('gSave');b.disabled=true;$('gMsg').textContent='Đang lưu…';
-        try{const items={};Object.entries(G).forEach(([k,v])=>{if(Number(v)>0&&bbCat(k))items[k]=Number(v);});await DB.saveBbpGia(items);gDirty=false;$('gMsg').textContent='Đã lưu bảng giá. Các biên bản đang lập dùng giá mới ngay.';}
+        try{const items={};Object.entries(G).forEach(([k,v])=>{if(Number(v)>0&&bbCat(k)&&!BB_MD[k])items[k]=Number(v);});await DB.saveBbpGia(items);gDirty=false;$('gMsg').textContent='Đã lưu bảng giá. Các biên bản đang lập dùng giá mới ngay.';}
         catch(e){$('gMsg').textContent='Không lưu được: '+(e.code||e.message);}b.disabled=false;};}
     $('gXls').onclick=async()=>{if(typeof ExcelJS==='undefined'){toast('Chưa tải được thư viện Excel.');return;}
       const wb=new ExcelJS.Workbook(),ws=wb.addWorksheet('Bang gia den bu');[12,34,22,8,18].forEach((w,i)=>ws.getColumn(i+1).width=w);
-      ws.addRow(['BẢNG GIÁ ĐỀN BÙ THIẾT BỊ – DỰ ÁN HH12 CỔ LOA']).font={bold:true,size:14};ws.addRow([`Khấu trừ 100% đơn giá × số lượng · xuất ngày ${fmtD(today())}`]).font={italic:true};ws.addRow([]);
+      ws.addRow(['BẢNG GIÁ ĐỀN BÙ THIẾT BỊ – DỰ ÁN HH12 CỔ LOA']).font={bold:true,size:14};ws.addRow([`Khấu trừ 100% đơn giá × số lượng · đơn giá chưa gồm VAT · xà gồ, tuýp quy đổi theo md · xuất ngày ${fmtD(today())}`]).font={italic:true};ws.addRow([]);
       const h=ws.addRow(['Mã','Tên thiết bị','Nhóm','ĐVT','Đơn giá (đ)']);h.font={bold:true,color:{argb:'FFFFFFFF'}};h.eachCell(c=>c.fill={type:'pattern',pattern:'solid',fgColor:{argb:'FF0B2545'}});
-      Object.entries(CATS).forEach(([k,l])=>{ws.addRow([k.toUpperCase()]).font={bold:true};l.forEach(x=>{const r=ws.addRow([x[0],x[1],x[3],x[2],Number(G[x[0]])||null]);r.getCell(5).numFmt='#,##0';});});
+      Object.entries(BB_DB_CATS).forEach(([k,l])=>{ws.addRow([k.toUpperCase()]).font={bold:true};l.forEach(x=>{const m=BB_MD[x[0]],r=ws.addRow([x[0],x[1]+(m?` (${m[1]} md × giá ${m[0]})`:''),x[3],x[2],bbGiaIn(G,x[0])||null]);r.getCell(5).numFmt='#,##0';});});
       const buf=await wb.xlsx.writeBuffer();await deliverFile('Bang-gia-den-bu_'+PROJECT_CODE+'_'+today()+'.xlsx',new Blob([buf],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}),'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');};
     renderGia.gia=()=>{if(gDirty){meta();return;}G={...BB_GIA};meta();sum();draw();};
   };
