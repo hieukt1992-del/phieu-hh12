@@ -101,6 +101,7 @@ h3.g{margin:6px 0 0;font-size:13px;color:var(--muted);font-weight:700;letter-spa
 .pad{border:2px dashed var(--blue);border-radius:12px;background:#fff;touch-action:none;width:100%;height:200px;display:block;cursor:crosshair}
 .sigprev{border:1px solid var(--line);border-radius:10px;background:#fff;padding:8px;max-width:340px}
 .sigprev img{max-width:100%;max-height:120px;display:block;margin:auto}
+.sigprev.ck{background:repeating-conic-gradient(#e6e9ef 0 25%,#fff 0 50%) 0 0/14px 14px}
 .pvbox{overflow:hidden;border:1px solid var(--line);border-radius:10px;background:#8b96a8}
 .pvin{transform-origin:top left;width:794px;margin:0 auto}
 .pvin .sheet{margin:0 0 16px}
@@ -553,19 +554,62 @@ const isMyTurn=s=>ME.member&&s.status==='pending'&&cur(s)&&ME.roles.includes(cur
 
 
 /* Tách nét chữ ký khỏi ảnh chụp: mực xanh theo màu, mực đen theo độ tối so với nền giấy quanh đó; nền thành trong suốt */
-const imgToSig=file=>new Promise((res,rej)=>{const fr=new FileReader();fr.onerror=()=>rej(new Error('không đọc được ảnh'));fr.onload=()=>{const im=new Image();im.onerror=()=>rej(new Error('ảnh không hợp lệ'));im.onload=()=>{
-  const k=Math.min(2,Math.max(1,420/im.width),900/im.width),w=Math.max(1,Math.round(im.width*k)),h=Math.max(1,Math.round(im.height*k));
-  const cv=document.createElement('canvas');cv.width=w;cv.height=h;const cx=cv.getContext('2d');cx.drawImage(im,0,0,w,h);
-  const d=cx.getImageData(0,0,w,h),a=d.data,B=Math.max(12,Math.round(Math.min(w,h)/8)),gw=Math.ceil(w/B),gh=Math.ceil(h/B),bg=new Float32Array(gw*gh);
-  const lumAt=i=>(a[i]*.299+a[i+1]*.587+a[i+2]*.114);
-  for(let gy=0;gy<gh;gy++)for(let gx=0;gx<gw;gx++){const v=[];for(let y=gy*B;y<Math.min(h,gy*B+B);y+=2)for(let x=gx*B;x<Math.min(w,gx*B+B);x+=2)v.push(lumAt((y*w+x)*4));v.sort((p,q)=>p-q);bg[gy*gw+gx]=v[Math.floor(v.length*.85)]||255;}
-  const bgAt=(x,y)=>{let m=0;const gx=Math.min(gw-1,Math.floor(x/B)),gy=Math.min(gh-1,Math.floor(y/B));for(let j=-1;j<=1;j++)for(let i=-1;i<=1;i++){const X=gx+i,Y=gy+j;if(X>=0&&Y>=0&&X<gw&&Y<gh)m=Math.max(m,bg[Y*gw+X]);}return m||255;};
-  let x0=w,y0=h,x1=0,y1=0,cnt=0;
-  for(let y=0;y<h;y++)for(let x=0;x<w;x++){const i=(y*w+x)*4,r=a[i],g=a[i+1],b=a[i+2],l=lumAt(i),bgl=bgAt(x,y);
-    const blue=Math.max(0,Math.min(1,((b-r)-18)/45)),dark=Math.max(0,Math.min(1,((bgl-l)/bgl-.22)/.28)),al=Math.max(blue,dark);
-    if(al>0.02){a[i]=Math.round(r*.8);a[i+1]=Math.round(g*.85);a[i+2]=Math.round(b*.95);a[i+3]=Math.round(Math.pow(al,.8)*255);if(al>.3){cnt++;if(x<x0)x0=x;if(x>x1)x1=x;if(y<y0)y0=y;if(y>y1)y1=y;}}else a[i+3]=0;}
-  if(cnt<30||x1<=x0||y1<=y0){rej(new Error('không thấy nét chữ ký trong ảnh'));return;}
-  cx.putImageData(d,0,0);const pd=6,c2=document.createElement('canvas');c2.width=x1-x0+1+pd*2;c2.height=y1-y0+1+pd*2;c2.getContext('2d').drawImage(cv,x0,y0,x1-x0+1,y1-y0+1,pd,pd,x1-x0+1,y1-y0+1);res(c2.toDataURL('image/png'));};im.src=fr.result;};fr.readAsDataURL(file);});
+/* Tách chữ ký khỏi ảnh chụp/ảnh cắt: nền trong suốt, nét mực đều màu, bỏ đốm bẩn, đường kẻ, mép giấy; tự cắt sát chữ ký.
+   src: File ảnh hoặc chuỗi data:image (dùng để làm sạch lại chữ ký đã lưu). */
+const imgToSig=src=>new Promise((res,rej)=>{
+  const go=url=>{const im=new Image();im.onerror=()=>rej(new Error('ảnh không hợp lệ'));im.onload=()=>{try{res(sigClean(im));}catch(e){rej(e);}};im.src=url;};
+  if(typeof src==='string'){go(src);return;}
+  const fr=new FileReader();fr.onerror=()=>rej(new Error('không đọc được ảnh'));fr.onload=()=>go(fr.result);fr.readAsDataURL(src);});
+function sigClean(im){
+  const k=Math.min(3,Math.max(1,500/im.width),1000/Math.max(im.width,im.height*1.6)),w=Math.max(1,Math.round(im.width*k)),h=Math.max(1,Math.round(im.height*k));
+  const cv=document.createElement('canvas');cv.width=w;cv.height=h;const cx=cv.getContext('2d',{willReadFrequently:true});
+  cx.fillStyle='#fff';cx.fillRect(0,0,w,h);cx.drawImage(im,0,0,w,h);
+  const d=cx.getImageData(0,0,w,h),a=d.data,N=w*h,L=new Float32Array(N),C=new Float32Array(N);
+  for(let p=0,i=0;p<N;p++,i+=4){const r=a[i],g=a[i+1],b=a[i+2],al=a[i+3]/255;
+    L[p]=(r*.299+g*.587+b*.114)*al+255*(1-al);C[p]=al*Math.max(0,b-(r+g)/2,(r-(g+b)/2)*.8);} // độ "mực xanh/đỏ"
+  // 1) nền giấy cục bộ: phân vị 90% theo ô lưới, nội suy song tuyến → bỏ bóng đổ, giấy ngả màu
+  const B=Math.max(16,Math.round(Math.min(w,h)/6)),gw=Math.ceil(w/B),gh=Math.ceil(h/B),G=new Float32Array(gw*gh),all=[];
+  for(let gy=0;gy<gh;gy++)for(let gx=0;gx<gw;gx++){const v=[];for(let y=gy*B;y<Math.min(h,gy*B+B);y+=2)for(let x=gx*B;x<Math.min(w,gx*B+B);x+=2)v.push(L[y*w+x]);v.sort((p,q)=>p-q);G[gy*gw+gx]=v[Math.floor(v.length*.9)]||255;all.push(...v.filter((_,j)=>j%3===0));}
+  all.sort((p,q)=>p-q);const paper=all[Math.floor(all.length*.75)]||255;
+  for(let j=0;j<gw*gh;j++)G[j]=Math.max(G[j],paper*.82); // ô toàn mực (ảnh cắt sát) không bị coi là nền
+  const bgAt=(x,y)=>{const fx=Math.min(gw-1,Math.max(0,x/B-.5)),fy=Math.min(gh-1,Math.max(0,y/B-.5)),x0=Math.floor(fx),y0=Math.floor(fy),x1=Math.min(gw-1,x0+1),y1=Math.min(gh-1,y0+1),tx=fx-x0,ty=fy-y0;
+    return (G[y0*gw+x0]*(1-tx)+G[y0*gw+x1]*tx)*(1-ty)+(G[y1*gw+x0]*(1-tx)+G[y1*gw+x1]*tx)*ty;};
+  // 2) độ đậm so với nền + ngưỡng Otsu tự động
+  const D=new Float32Array(N),hist=new Uint32Array(101);
+  for(let y=0;y<h;y++)for(let x=0;x<w;x++){const p=y*w+x,bg=Math.max(40,bgAt(x,y)),v=Math.max(0,Math.min(1,(bg-L[p])/bg+Math.min(.35,C[p]/160)));D[p]=v;hist[Math.round(v*100)]++;}
+  let sum=0,sumB=0,wB=0,best=0,th=25;for(let t=0;t<=100;t++)sum+=t*hist[t];
+  for(let t=0;t<=100;t++){wB+=hist[t];if(!wB)continue;const wF=N-wB;if(!wF)break;sumB+=t*hist[t];const mB=sumB/wB,mF=(sum-sumB)/wF,bt=wB*wF*(mB-mF)*(mB-mF);if(bt>best){best=bt;th=t;}}
+  const lo=Math.max(.1,Math.min(.3,th/100*.7)),hi=Math.max(lo+.12,Math.min(.55,th/100*1.35));
+  const A=new Float32Array(N);for(let p=0;p<N;p++){const t=(D[p]-lo)/(hi-lo);A[p]=t<=0?0:t>=1?1:t*t*(3-2*t);}
+  // 3) bỏ đốm bẩn, đường kẻ dòng, mép giấy/bóng chạm khung ảnh (theo vùng liên thông)
+  const lab=new Int32Array(N).fill(-1),comps=[],st=new Int32Array(N);
+  for(let s=0;s<N;s++){if(A[s]<.35||lab[s]>=0)continue;let top=0,n=0,x0=w,y0=h,x1=0,y1=0,edge=false;st[top++]=s;lab[s]=comps.length;
+    while(top){const p=st[--top],x=p%w,y=(p-x)/w;n++;if(x<x0)x0=x;if(x>x1)x1=x;if(y<y0)y0=y;if(y>y1)y1=y;if(x===0||y===0||x===w-1||y===h-1)edge=true;
+      for(let dy=-1;dy<=1;dy++)for(let dx=-1;dx<=1;dx++){const X=x+dx,Y=y+dy;if(X<0||Y<0||X>=w||Y>=h)continue;const q=Y*w+X;if(lab[q]<0&&A[q]>=.35){lab[q]=lab[s];st[top++]=q;}}}
+    comps.push({n,x0,y0,x1,y1,edge});}
+  if(!comps.length)throw new Error('không thấy nét chữ ký trong ảnh');
+  const big=Math.max(...comps.map(c=>c.n)),keep=comps.map(c=>{const cw=c.x1-c.x0+1,ch=c.y1-c.y0+1;
+    if(c.n<Math.max(10,big*.012))return false;                                   // đốm nhỏ
+    if((ch<=Math.max(3,h*.025)&&cw>=w*.5)||(cw<=Math.max(3,w*.025)&&ch>=h*.5))return false; // đường kẻ thẳng dài
+    if((c.x0<=1&&c.x1>=w-2&&ch<=Math.max(5,h*.08))||(c.y0<=1&&c.y1>=h-2&&cw<=Math.max(5,w*.08)))return false; // kẻ bảng/mép giấy chạy suốt khung ảnh
+    if(c.edge&&(cw>=w*.9||ch>=h*.9)&&c.n>cw*ch*.5)return false;                   // mảng tối/mép giấy chạm khung
+    return true;});
+  // 4) màu mực đều (lấy theo màu mực thật, làm đậm), alpha mịn theo độ đậm
+  let R=0,Gc=0,Bc=0,cn=0;for(let p=0;p<N;p++)if(A[p]>.8&&lab[p]>=0&&keep[lab[p]]){const i=p*4;R+=a[i];Gc+=a[i+1];Bc+=a[i+2];cn++;}
+  if(cn<20)throw new Error('không thấy nét chữ ký trong ảnh');
+  R/=cn;Gc/=cn;Bc/=cn;const lum=R*.299+Gc*.587+Bc*.114,f=lum>62?62/lum:1;R=Math.round(R*f);Gc=Math.round(Gc*f);Bc=Math.round(Bc*f);
+  if(Bc-(R+Gc)/2<12&&R-(Gc+Bc)/2<12){R=22;Gc=24;Bc=32;} // mực đen/xám → đen đều
+  let x0=w,y0=h,x1=0,y1=0;
+  for(let p=0;p<N;p++){const i=p*4;let al=A[p];
+    if(al>0){const l=lab[p];if(l>=0&&!keep[l])al=0;else if(l<0){let ok=false;const x=p%w,y=(p-x)/w;for(let dy=-2;dy<=2&&!ok;dy++)for(let dx=-2;dx<=2;dx++){const X=x+dx,Y=y+dy;if(X>=0&&Y>=0&&X<w&&Y<h){const q=lab[Y*w+X];if(q>=0&&keep[q]){ok=true;break;}}}if(!ok)al=0;}}
+    a[i]=R;a[i+1]=Gc;a[i+2]=Bc;a[i+3]=Math.round(al*255);
+    if(al>.3){const x=p%w,y=(p-x)/w;if(x<x0)x0=x;if(x>x1)x1=x;if(y<y0)y0=y;if(y>y1)y1=y;}}
+  if(x1<=x0||y1<=y0)throw new Error('không thấy nét chữ ký trong ảnh');
+  cx.clearRect(0,0,w,h);cx.putImageData(d,0,0);
+  const pd=8,cw=x1-x0+1,ch=y1-y0+1,s=Math.min(1,600/cw),c2=document.createElement('canvas');c2.width=Math.round(cw*s)+pd*2;c2.height=Math.round(ch*s)+pd*2;
+  const c2x=c2.getContext('2d');c2x.imageSmoothingQuality='high';c2x.drawImage(cv,x0,y0,cw,ch,pd,pd,Math.round(cw*s),Math.round(ch*s));
+  return c2.toDataURL('image/png');
+}
 const VT_ROUTES=['vat-tu','tao','thep-nhap','thep-tonghop','thong-ke','ncc','duyet','tatca','phieu'];
 const vtItems=()=>{const m=ME.member||ME.isAdmin,a=[['tao','Lập phiếu'],['thep-nhap','Gửi ảnh thép'],['thep-tonghop','Tổng hợp thép']];if(m)a.push(['thong-ke','Thống kê']);if(canNcc())a.push(['ncc','Trả NCC']);if(m)a.push(['duyet','Chờ ký'],['tatca','Tất cả phiếu']);return a;};
 function renderChrome(){
@@ -2167,13 +2211,14 @@ function viewProfile(){
   app.innerHTML=`<div class="eyebrow">Hồ sơ cấp duyệt</div><h2 style="margin:4px 0 0;font-size:26px;color:var(--navy)">Chữ ký của tôi</h2>
    <section class="panel"><h2>Thông tin</h2><p class="hint" style="color:var(--ink);margin:0"><b>${esc(ME.name)}</b> · ${esc(U.email)}<br>Vai trò: ${esc(ME.roles.map(r=>ROLES[r]).join(', ')||'chưa được gán, liên hệ quản trị')}</p>
     <label class="f" for="pname">Họ tên hiển thị trên phiếu<input id="pname" value="${esc(ME.name)}"></label></section>
-   <section class="panel"><h2>${sig?'Chữ ký đã khai báo':'Chưa có chữ ký'}</h2>${sig?`<div class="sigprev"><img src="${sig}" alt="Chữ ký hiện tại"></div>`:'<p class="hint">Vẽ chữ ký một lần. Các lần sau bạn chỉ cần bấm Ký.</p>'}
+   <section class="panel"><h2>${sig?'Chữ ký đã khai báo':'Chưa có chữ ký'}</h2>${sig?`<div class="sigprev ck"><img src="${sig}" alt="Chữ ký hiện tại"></div><div class="row" style="margin-top:6px"><button type="button" class="btn sm" id="sigClean">Làm sạch nền chữ ký hiện tại</button><span class="hint">Dùng khi chữ ký cũ là ảnh cắt còn dính nền giấy (ô caro = trong suốt).</span></div>`:'<p class="hint">Vẽ chữ ký một lần. Các lần sau bạn chỉ cần bấm Ký.</p>'}
     <h2 style="font-size:15px">${sig?'Ký lại để thay chữ ký':'Ký tên vào khung'}</h2><div id="padHost"></div>
-    <label class="f" for="sigfile" style="margin-top:4px">Hoặc tải ảnh chữ ký (chụp trên giấy trắng, tự tách nét, bỏ nền giấy)<input id="sigfile" type="file" accept="image/*"></label><div id="sigup"></div>
+    <label class="f" for="sigfile" style="margin-top:4px">Hoặc tải ảnh chữ ký (ảnh chụp hoặc ảnh cắt đều được — web tự bỏ nền giấy, bóng, dòng kẻ, chỉ giữ nét chữ ký)<input id="sigfile" type="file" accept="image/*"></label><div id="sigup"></div>
     <div class="row"><button class="btn red" id="save">Lưu chữ ký</button><span id="msg" class="msg" hidden></span></div></section>`;
   const pad=sigPad($('padHost'));let upSig=null;
   const setMsg=(t,k)=>{$('msg').hidden=!t;$('msg').textContent=t||'';$('msg').className='msg '+(k||'');};
-  $('sigfile').onchange=async()=>{const f=$('sigfile').files[0];if(!f)return;try{upSig=await imgToSig(f);$('sigup').innerHTML='<p class="hint" style="margin:6px 0">Chữ ký từ ảnh (bấm Lưu chữ ký để dùng):</p><div class="sigprev"><img src="'+upSig+'" alt="Chữ ký từ ảnh"></div>';setMsg('');}catch(x){upSig=null;setMsg('Không đọc được ảnh: '+x.message,'err');}};
+  $('sigfile').onchange=async()=>{const f=$('sigfile').files[0];if(!f)return;try{upSig=await imgToSig(f);$('sigup').innerHTML='<p class="hint" style="margin:6px 0">Chữ ký từ ảnh, đã bỏ nền (bấm Lưu chữ ký để dùng):</p><div class="sigprev ck"><img src="'+upSig+'" alt="Chữ ký từ ảnh"></div>';setMsg('');}catch(x){upSig=null;setMsg('Không đọc được ảnh: '+x.message,'err');}};
+  if($('sigClean'))$('sigClean').onclick=async()=>{try{upSig=await imgToSig(sig);$('sigup').innerHTML='<p class="hint" style="margin:6px 0">Chữ ký hiện tại sau khi làm sạch nền (bấm Lưu chữ ký để dùng):</p><div class="sigprev ck"><img src="'+upSig+'" alt="Chữ ký đã làm sạch"></div>';setMsg('');}catch(x){upSig=null;setMsg('Không làm sạch được: '+x.message,'err');}};
   $('save').onclick=async()=>{
     const name=$('pname').value.trim();if(!name){setMsg('Nhập họ tên hiển thị.','err');return;}
     if(pad.empty()&&!sig&&!upSig){setMsg('Chưa có chữ ký, hãy ký trong khung hoặc tải ảnh.','err');return;}
@@ -2197,10 +2242,10 @@ async function viewAdmin(){
   for(const r of STAMPS){try{stamps[r]=await DB.getStamp(r);}catch(e){stamps[r]=null;}}
   const roleBox=(e,roles)=>`<div class="roles">${ALL_ROLES.map(r=>`<label><input type="checkbox" data-e="${esc(e)}" data-r="${r}" ${roles.includes(r)?'checked':''}>${esc(ROLES[r])}</label>`).join('')}</div>`;
   app.innerHTML=`<div class="eyebrow">Quản trị</div><h2 style="margin:4px 0 0;font-size:26px;color:var(--navy)">Cấp duyệt được phép ký</h2>
-   <section class="panel"><h2>Chữ ký mẫu chèn sẵn</h2><p class="hint">Các cấp này không ký tay. Khi Giám sát phụ trách duyệt xong, hệ thống tự chèn chữ ký mẫu bên dưới vào phiếu. Tải ảnh chữ ký (chụp trên giấy trắng) cho từng cấp.</p>
+   <section class="panel"><h2>Chữ ký mẫu chèn sẵn</h2><p class="hint">Các cấp này không ký tay. Khi Giám sát phụ trách duyệt xong, hệ thống tự chèn chữ ký mẫu bên dưới vào phiếu. Tải ảnh chữ ký (chụp hoặc cắt từ giấy cũng được): web tự bỏ nền giấy, bóng, dòng kẻ, đốm bẩn, chỉ giữ nét chữ ký trên nền trong suốt (ô caro = trong suốt).</p>
    ${STAMPS.map(r=>`<div class="card" style="padding:14px" data-st="${r}"><div class="row" style="justify-content:space-between"><b>${esc(ROLES[r])}</b><span class="hint">${stamps[r]&&stamps[r].sig?'Đã có chữ ký mẫu':'Chưa có'}</span></div>
     <div class="grid"><label class="f">Họ tên in trên phiếu<input data-stn="${r}" value="${esc((stamps[r]&&stamps[r].name)||'')}" placeholder="Nguyễn Văn A"></label><label class="f">Ảnh chữ ký (PNG/JPG)<input type="file" accept="image/*" data-stf="${r}"></label></div>
-    ${stamps[r]&&stamps[r].sig?`<div class="sigprev"><img src="${stamps[r].sig}" alt="Chữ ký mẫu ${esc(ROLES[r])}"></div>`:''}<div class="row"><button class="btn blue sm" data-stsave="${r}">Lưu chữ ký mẫu</button></div></div>`).join('')}</section>
+    ${stamps[r]&&stamps[r].sig?`<div class="sigprev ck" data-stpv="${r}"><img src="${stamps[r].sig}" alt="Chữ ký mẫu ${esc(ROLES[r])}"></div>`:''}<div class="row"><button class="btn blue sm" data-stsave="${r}">Lưu chữ ký mẫu</button>${stamps[r]&&stamps[r].sig?`<button class="btn sm" data-stclean="${r}">Làm sạch nền chữ ký đang lưu</button>`:''}</div></div>`).join('')}</section>
    <section class="panel"><h2>Bộ đếm số phiếu</h2><p class="hint">Mã phiếu tự sinh dạng HH12_TÊN-ĐỘI_001. Bấm nút dưới để bộ đếm của từng đội tiếp nối số phiếu đã có (làm 1 lần, bấm lại không hại).</p><div class="row"><button class="btn blue sm" id="syncSeq">Đồng bộ bộ đếm với phiếu cũ</button><span id="syncMsg" class="hint"></span></div></section>
    <section class="panel"><h2>Thêm người ký</h2><div class="grid"><label class="f">Email Google<input id="ne" type="email" placeholder="ten@gmail.com" autocomplete="off"></label><label class="f">Họ tên<input id="nn" placeholder="Nguyễn Văn A"></label></div>${roleBox('__new',[])}<div class="row"><button class="btn blue" id="add">Thêm</button><span id="msg" class="msg" hidden></span></div></section>
    <section class="panel"><h2>Danh sách (${list.length})</h2>${list.map(a=>`<div class="card" style="padding:14px"><div class="row" style="justify-content:space-between"><div><b>${esc(a.name||'')}</b><br><small class="hint">${esc(a.email)}${a.admin?' · quản trị':''}</small></div>${a.email===ADMIN?'':`<button class="btn sm" data-del="${esc(a.email)}">Xoá</button>`}</div>${roleBox(a.email,a.roles||[])}</div>`).join('')}</section>`;
@@ -2211,6 +2256,11 @@ async function viewAdmin(){
     if(!nm){toast('Nhập họ tên in trên phiếu.');return;}
     try{let sig=stamps[r]&&stamps[r].sig;if(f)sig=await imgToSig(f);if(!sig){toast('Chọn ảnh chữ ký.');return;}
       await DB.setStamp(r,{sig,name:nm,updatedAt:new Date().toISOString()});toast('Đã lưu chữ ký mẫu '+ROLES[r]);viewAdmin();}catch(e){toast('Không lưu được: '+(e.code||e.message));}});
+  app.querySelectorAll('[data-stclean]').forEach(b=>b.onclick=async()=>{const r=b.dataset.stclean,st=stamps[r];if(!st||!st.sig)return;b.disabled=true;
+    try{const sig=await imgToSig(st.sig);const pv=app.querySelector(`[data-stpv="${r}"] img`);if(pv)pv.src=sig;
+      if(!confirm('Đã làm sạch nền chữ ký mẫu '+ROLES[r]+'. Xem ảnh trong khung rồi bấm OK để lưu, Huỷ để giữ bản cũ.')){pv&&(pv.src=st.sig);b.disabled=false;return;}
+      await DB.setStamp(r,{...st,sig,updatedAt:new Date().toISOString()});toast('Đã lưu chữ ký mẫu '+ROLES[r]+' (nền trong suốt).');viewAdmin();}
+    catch(e){b.disabled=false;toast('Không làm sạch được: '+(e.message||e));}});
   $('add').onclick=async()=>{
     const e=$('ne').value.trim().toLowerCase(),n=$('nn').value.trim(),roles=[...app.querySelectorAll('[data-e="__new"]:checked')].map(x=>x.dataset.r);
     if(!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(e)){setMsg('Email chưa đúng.','err');return;}
