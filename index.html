@@ -564,9 +564,13 @@ function sigClean(im){
   const k=Math.min(3,Math.max(1,500/im.width),1000/Math.max(im.width,im.height*1.6)),w=Math.max(1,Math.round(im.width*k)),h=Math.max(1,Math.round(im.height*k));
   const cv=document.createElement('canvas');cv.width=w;cv.height=h;const cx=cv.getContext('2d',{willReadFrequently:true});
   cx.fillStyle='#fff';cx.fillRect(0,0,w,h);cx.drawImage(im,0,0,w,h);
-  const d=cx.getImageData(0,0,w,h),a=d.data,N=w*h,L=new Float32Array(N),C=new Float32Array(N);
-  for(let p=0,i=0;p<N;p++,i+=4){const r=a[i],g=a[i+1],b=a[i+2],al=a[i+3]/255;
-    L[p]=(r*.299+g*.587+b*.114)*al+255*(1-al);C[p]=al*Math.max(0,b-(r+g)/2,(r-(g+b)/2)*.8);} // độ "mực xanh/đỏ"
+  // đọc độ trong suốt gốc: phần trong suốt (viền của ảnh PNG đã cắt) coi như giấy, không phải mực
+  const t0=document.createElement('canvas');t0.width=w;t0.height=h;const tx0=t0.getContext('2d',{willReadFrequently:true});tx0.drawImage(im,0,0,w,h);const OA=tx0.getImageData(0,0,w,h).data;
+  const d=cx.getImageData(0,0,w,h),a=d.data,N=w*h,L=new Float32Array(N),C=new Float32Array(N),T=new Uint8Array(N);
+  const op=[];for(let p=0;p<N;p+=3)if(OA[p*4+3]>=128){const i=p*4;op.push(a[i]*.299+a[i+1]*.587+a[i+2]*.114);}
+  op.sort((x,y)=>x-y);const pap0=op.length?op[Math.floor(op.length*.6)]:255;
+  for(let p=0,i=0;p<N;p++,i+=4){const r=a[i],g=a[i+1],b=a[i+2],al=OA[i+3]/255;if(al<.5)T[p]=1;
+    L[p]=al<.5?pap0:(r*.299+g*.587+b*.114);C[p]=al<.5?0:Math.max(0,b-(r+g)/2,(r-(g+b)/2)*.8);} // độ "mực xanh/đỏ"
   // 1) nền giấy cục bộ: phân vị 90% theo ô lưới, nội suy song tuyến → bỏ bóng đổ, giấy ngả màu
   const B=Math.max(16,Math.round(Math.min(w,h)/6)),gw=Math.ceil(w/B),gh=Math.ceil(h/B),G=new Float32Array(gw*gh),all=[];
   for(let gy=0;gy<gh;gy++)for(let gx=0;gx<gw;gx++){const v=[];for(let y=gy*B;y<Math.min(h,gy*B+B);y+=2)for(let x=gx*B;x<Math.min(w,gx*B+B);x+=2)v.push(L[y*w+x]);v.sort((p,q)=>p-q);G[gy*gw+gx]=v[Math.floor(v.length*.9)]||255;all.push(...v.filter((_,j)=>j%3===0));}
@@ -579,26 +583,28 @@ function sigClean(im){
   for(let y=0;y<h;y++)for(let x=0;x<w;x++){const p=y*w+x,bg=Math.max(40,bgAt(x,y)),v=Math.max(0,Math.min(1,(bg-L[p])/bg+Math.min(.35,C[p]/160)));D[p]=v;hist[Math.round(v*100)]++;}
   let sum=0,sumB=0,wB=0,best=0,th=25;for(let t=0;t<=100;t++)sum+=t*hist[t];
   for(let t=0;t<=100;t++){wB+=hist[t];if(!wB)continue;const wF=N-wB;if(!wF)break;sumB+=t*hist[t];const mB=sumB/wB,mF=(sum-sumB)/wF,bt=wB*wF*(mB-mF)*(mB-mF);if(bt>best){best=bt;th=t;}}
-  const lo=Math.max(.1,Math.min(.3,th/100*.7)),hi=Math.max(lo+.12,Math.min(.55,th/100*1.35));
-  const A=new Float32Array(N);for(let p=0;p<N;p++){const t=(D[p]-lo)/(hi-lo);A[p]=t<=0?0:t>=1?1:t*t*(3-2*t);}
+  const lo=Math.max(.12,Math.min(.34,th/100*.85)),hi=Math.max(lo+.14,Math.min(.6,th/100*1.6));
+  const A=new Float32Array(N);for(let p=0;p<N;p++){if(T[p]){A[p]=0;continue;}const t=(D[p]-lo)/(hi-lo);A[p]=t<=0?0:t>=1?1:t*t*(3-2*t);}
   // 3) bỏ đốm bẩn, đường kẻ dòng, mép giấy/bóng chạm khung ảnh (theo vùng liên thông)
   const lab=new Int32Array(N).fill(-1),comps=[],st=new Int32Array(N);
   for(let s=0;s<N;s++){if(A[s]<.35||lab[s]>=0)continue;let top=0,n=0,x0=w,y0=h,x1=0,y1=0,edge=false;st[top++]=s;lab[s]=comps.length;
     while(top){const p=st[--top],x=p%w,y=(p-x)/w;n++;if(x<x0)x0=x;if(x>x1)x1=x;if(y<y0)y0=y;if(y>y1)y1=y;if(x===0||y===0||x===w-1||y===h-1)edge=true;
-      for(let dy=-1;dy<=1;dy++)for(let dx=-1;dx<=1;dx++){const X=x+dx,Y=y+dy;if(X<0||Y<0||X>=w||Y>=h)continue;const q=Y*w+X;if(lab[q]<0&&A[q]>=.35){lab[q]=lab[s];st[top++]=q;}}}
+      for(let dy=-1;dy<=1;dy++)for(let dx=-1;dx<=1;dx++){const X=x+dx,Y=y+dy;if(X<0||Y<0||X>=w||Y>=h)continue;const q=Y*w+X;if(T[q])edge=true;if(lab[q]<0&&A[q]>=.35){lab[q]=lab[s];st[top++]=q;}}}
     comps.push({n,x0,y0,x1,y1,edge});}
   if(!comps.length)throw new Error('không thấy nét chữ ký trong ảnh');
   const big=Math.max(...comps.map(c=>c.n)),keep=comps.map(c=>{const cw=c.x1-c.x0+1,ch=c.y1-c.y0+1;
     if(c.n<Math.max(10,big*.012))return false;                                   // đốm nhỏ
     if((ch<=Math.max(3,h*.025)&&cw>=w*.5)||(cw<=Math.max(3,w*.025)&&ch>=h*.5))return false; // đường kẻ thẳng dài
     if((c.x0<=1&&c.x1>=w-2&&ch<=Math.max(5,h*.08))||(c.y0<=1&&c.y1>=h-2&&cw<=Math.max(5,w*.08)))return false; // kẻ bảng/mép giấy chạy suốt khung ảnh
-    if(c.edge&&(cw>=w*.9||ch>=h*.9)&&c.n>cw*ch*.5)return false;                   // mảng tối/mép giấy chạm khung
+    if(c.edge&&(cw>=w*.9||ch>=h*.9)&&c.n>cw*ch*.5)return false;
+    const nearB=c.edge||c.x0>=w*.9||c.x1<=w*.1||c.y0>=h*.9||c.y1<=h*.1;
+    if(nearB&&c.n<big*.15&&Math.min(cw,ch)<=Math.max(4,Math.min(w,h)*.045)&&Math.max(cw,ch)>=Math.min(w,h)*.12)return false; // vạch mép giấy (thẳng, mảnh, sát mép)                   // mảng tối/mép giấy chạm khung
     return true;});
   // 4) màu mực đều (lấy theo màu mực thật, làm đậm), alpha mịn theo độ đậm
   let R=0,Gc=0,Bc=0,cn=0;for(let p=0;p<N;p++)if(A[p]>.8&&lab[p]>=0&&keep[lab[p]]){const i=p*4;R+=a[i];Gc+=a[i+1];Bc+=a[i+2];cn++;}
   if(cn<20)throw new Error('không thấy nét chữ ký trong ảnh');
   R/=cn;Gc/=cn;Bc/=cn;const lum=R*.299+Gc*.587+Bc*.114,f=lum>62?62/lum:1;R=Math.round(R*f);Gc=Math.round(Gc*f);Bc=Math.round(Bc*f);
-  if(Bc-(R+Gc)/2<12&&R-(Gc+Bc)/2<12){R=22;Gc=24;Bc=32;} // mực đen/xám → đen đều
+  if(Bc-(R+Gc)/2>=5&&Bc>=R){R=Math.min(R,30);Gc=Math.min(Gc,48);Bc=Math.max(Bc,118);}else if(R-(Gc+Bc)/2<12){R=22;Gc=24;Bc=32;} // mực đen/xám → đen đều
   let x0=w,y0=h,x1=0,y1=0;
   for(let p=0;p<N;p++){const i=p*4;let al=A[p];
     if(al>0){const l=lab[p];if(l>=0&&!keep[l])al=0;else if(l<0){let ok=false;const x=p%w,y=(p-x)/w;for(let dy=-2;dy<=2&&!ok;dy++)for(let dx=-2;dx<=2;dx++){const X=x+dx,Y=y+dy;if(X>=0&&Y>=0&&X<w&&Y<h){const q=lab[Y*w+X];if(q>=0&&keep[q]){ok=true;break;}}}if(!ok)al=0;}}
