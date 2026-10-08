@@ -331,7 +331,7 @@ const FORMS={
   head:[...HEADA,['zone','Vị trí / Zone thi công','text'],['ngay_xuat','Ngày cần thiết bị','date']],req:['ngay_dn','ngay_xuat','sdt','zone'],chain:CHAINA()},
  N:{code:'NCC',file:'Phieu-tra-NCC-ra-cong',name:'Trả vật tư thiết bị NCC (phiếu đề nghị ra cổng)',sub:'Đăng ký vật tư/tài sản mang ra khỏi công trường trả nhà cung cấp',title:'ĐĂNG KÝ VẬT TƯ/TÀI SẢN MANG RA KHỎI<br>CÔNG TRƯỜNG',per:15,layout:'B',
   head:[['ngay','Ngày lập phiếu','date'],['so','Số phiếu','text'],['don_vi','Tên đơn vị (nhà cung cấp) nhận trả','text'],['nguoi','Tên người mang ra','text'],['cmnd','Số CMND','text'],['bien_so','Biển số xe','text'],['gio','Giờ mang ra','time'],['ngay_mang','Ngày mang ra','date']],req:['don_vi'],
-  chain:[['don_vi','Đơn vị đăng ký (thủ kho lập)'],['thu_kho','Thủ kho','auto'],['gs_phu_trach','Giám sát phụ trách'],['cht','CHT','auto'],['an_ninh','An ninh cổng','skip']]}
+  chain:[['don_vi','Đơn vị đăng ký (thủ kho lập)','nosig'],['thu_kho','Thủ kho','auto'],['gs_phu_trach','Giám sát phụ trách'],['cht','CHT','skip'],['an_ninh','An ninh cổng','skip']]}
 };
 const ROLES={thu_kho:'Thủ kho',gs_tctc:'GS. TCTC',gs_phu_trach:'GS. Phụ trách / Giám sát phụ trách',cht:'Chỉ huy trưởng (CHT)',an_ninh:'An ninh cổng'};
 const ALL_ROLES=Object.keys(ROLES);
@@ -353,7 +353,9 @@ function headerBlock(F,h,code){
 }
 const sigHead=(steps,x)=>`<div class="sig" style="grid-template-columns:repeat(${steps.length},1fr);${x||''}">${steps.map(s=>`<div>${esc(s.label)}</div>`).join('')}</div>`;
 const sigCells=(steps,blank)=>steps.map(s=>s&&s.sig?`<div><img class="sg" src="${s.sig}" alt=""><span class="sn">${esc(s.name||'')}</span><span class="st">${esc(fmtDT(s.at))}</span></div>`:`<div>${blank||''}</div>`).join('');
-const vfMark=(slip)=>{if(!slip)return '';if(slip.status==='done'){const sg=slip.steps.filter(x=>x.sig),last=sg[sg.length-1];const tot=slip.steps.filter(x=>x.mode!=='skip'||x.role==='an_ninh').length;return `<div class="vf">Phiếu điện tử ${esc(slip.code||'')} · đã ký điện tử ${sg.length}/${tot} cấp · ${esc(fmtDT(last&&last.at))}</div>`;}return slip.status==='rejected'?`<div class="vf" style="color:#b3261e">PHIẾU BỊ TỪ CHỐI, KHÔNG CÓ GIÁ TRỊ</div>`:'';};
+const NCC_BLANK=['don_vi','cht']; // Trả NCC: 2 ô này luôn để trống trên bản in (ký tay / trình ký sống)
+const sigShown=(s,kind)=>kind==='N'?s.map(x=>x&&NCC_BLANK.includes(x.role)?{...x,sig:''}:x):s;
+const vfMark=(slip)=>{if(!slip)return '';if(slip.status==='done'){const st=sigShown(slip.steps,slip.type),sg=st.filter(x=>x.sig),last=sg[sg.length-1];const tot=slip.type==='N'?st.filter(x=>x.mode!=='skip'&&x.mode!=='nosig'&&!NCC_BLANK.includes(x.role)).length:slip.steps.filter(x=>x.mode!=='skip'||x.role==='an_ninh').length;return `<div class="vf">Phiếu điện tử ${esc(slip.code||'')} · đã ký điện tử ${sg.length}/${tot} cấp · ${esc(fmtDT(last&&last.at))}</div>`;}return slip.status==='rejected'?`<div class="vf" style="color:#b3261e">PHIẾU BỊ TỪ CHỐI, KHÔNG CÓ GIÁ TRỊ</div>`:'';};
 function sheetA(h,rows,pg,tot,steps,slip,kind){
   const F=FORMS[kind||'A'];let tr='';
   for(let i=0;i<F.per;i++){const r=rows[i]||{};const has=filled(r);
@@ -384,7 +386,7 @@ function sheetB(h,rows,pg,tot,steps,slip,kind){
    <table class="tb" style="margin-top:6px"><colgroup><col style="width:46px"><col style="width:214px"><col style="width:62px"><col style="width:56px"><col style="width:88px"><col style="width:74px"><col></colgroup>
    <thead><tr><th>STT</th><th>Vật tư/ tài sản mang ra</th><th>Số lượng</th><th>ĐVT</th><th>Ký hiệu (nếu có)</th><th>Màu sơn</th><th>Ghi chú</th></tr></thead><tbody>${tr}</tbody></table>
    ${sigHead(steps,'border-top:0')}
-   <div class="sigbox" style="height:118px;grid-template-columns:repeat(${steps.length},1fr)">${sigCells(steps,'Họ tên:……………<br>Ngày …./…../…')}</div>
+   <div class="sigbox" style="height:118px;grid-template-columns:repeat(${steps.length},1fr)">${sigCells(sigShown(steps,'N'),'Họ tên:……………<br>Ngày …./…../…')}</div>
    <div style="font-size:11.5px;margin-top:6px;line-height:1.4">
     <div>– Đơn vị có nhu cầu đem vật tư/ tài sản mang ra khỏi công trường làm Phiếu đăng ký.</div>
     <div>– Thủ kho căn cứ số lượng trên Phiếu đăng ký mang vào, Phiếu đăng ký mang ra và số lượng kiểm đếm thực tế để xác nhận.</div>
@@ -701,10 +703,10 @@ function viewCreate(mode){
    <div id="eqlist" style="display:flex;flex-direction:column;gap:10px"></div>
    <h3 class="g">Thiết bị khác (không có trong bảng mã)</h3><div id="custom" style="display:flex;flex-direction:column;gap:10px"></div>
    <div class="row"><button class="btn sm" id="addRow">+ Thêm thiết bị khác</button><span id="pageInfo" class="hint"></span></div></section>
-  <section class="panel"><h2><i>4</i>${ncc?'Chữ ký người lập phiếu':'Ký tên người lập phiếu'}</h2>${ncc?(mySig?`<p class="hint" style="color:var(--ink)">Người lập: <b>${esc(ME.name)}</b>. Phiếu ký bằng chữ ký đã khai báo:</p><div class="sigprev"><img src="${mySig}" alt="Chữ ký của bạn"></div>`:'<div class="warnbox"><b style="color:var(--bad)">Bạn chưa khai báo chữ ký.</b> <a href="#/ho-so">Khai báo chữ ký</a> rồi quay lại.</div>'):`<label class="f" for="signer">Họ và tên người ký<input id="signer" autocomplete="name" placeholder="Nhập họ tên đầy đủ" value="${esc(C.signer)}"></label>
+  <section class="panel"><h2><i>4</i>${ncc?'Người lập phiếu':'Ký tên người lập phiếu'}</h2>${ncc?`<p class="hint" style="color:var(--ink)">Người lập: <b>${esc(ME.name)}</b>. Không cần ký: ô <b>Đơn vị đăng ký</b> để trống, ô <b>CHT</b> để trống để trình ký sống trên bản in. Thủ kho chèn chữ ký mẫu, Giám sát phụ trách ký duyệt online.</p>`:`<label class="f" for="signer">Họ và tên người ký<input id="signer" autocomplete="name" placeholder="Nhập họ tên đầy đủ" value="${esc(C.signer)}"></label>
    <div id="padHost"></div>`}</section>
   <section class="panel"><h2><i>5</i>Xem trước và gửi duyệt</h2><div class="pvbox" id="pvbox"><div class="pvin" id="pv"></div></div>
-   <div class="row"><button class="btn red" id="submit">Ký và gửi duyệt</button><span id="msg" class="msg" hidden></span></div>
+   <div class="row"><button class="btn red" id="submit">${ncc?'Gửi duyệt':'Ký và gửi duyệt'}</button><span id="msg" class="msg" hidden></span></div>
    </section>`;
   padObj=ncc?null:sigPad($('padHost'));
   const st=()=>C[C.kind],F=()=>FORMS[C.kind];
@@ -753,12 +755,11 @@ function viewCreate(mode){
     const items=itemsOf(s);
     if(!items.length){setMsg('Tick ít nhất một thiết bị.','err');return;}
     if(items.some(i=>!String(i.sl).trim())){setMsg('Còn thiết bị đã tick nhưng chưa điền số lượng.','err');return;}
-    if(ncc){if(!mySig){setMsg('Chưa có chữ ký, vào Chữ ký của tôi để khai báo.','err');return;}}
-    else{if(!C.signer.trim()){setMsg('Nhập họ tên người ký.','err');$('signer').classList.add('invalid');$('signer').focus();return;}
+    if(!ncc){if(!C.signer.trim()){setMsg('Nhập họ tên người ký.','err');$('signer').classList.add('invalid');$('signer').focus();return;}
     if(padObj.empty()){setMsg('Chưa có chữ ký. Ký trong khung phía trên.','err');$('padHost').scrollIntoView({block:'center'});return;}}
     $('submit').disabled=true;setMsg('Đang gửi phiếu…');
     try{
-      const steps=newSteps(kind),fm=firstManual(kind),finished=fm<0,sname=ncc?ME.name:C.signer.trim();steps[0]=ncc?{...steps[0],name:sname,email:U.email,sig:mySig,at:new Date().toISOString()}:{...steps[0],name:sname,sig:padObj.data(),at:new Date().toISOString(),guest:true};
+      const steps=newSteps(kind),fm=firstManual(kind),finished=fm<0,sname=ncc?ME.name:C.signer.trim();steps[0]=ncc?{...steps[0],name:sname,email:U.email,sig:'',at:new Date().toISOString()}:{...steps[0],name:sname,sig:padObj.data(),at:new Date().toISOString(),guest:true};
       const head={};Object.entries(s.head).forEach(([k,v])=>{if(!k.startsWith('_o_')&&typeof v==='string'&&v.trim())head[k]=v.trim();});
       const slug=slugOf(head.doi||head.don_vi,ncc,kind==='D');
       let seq=null;try{seq=await DB.nextSeq(slug);}catch(e){}
@@ -951,7 +952,7 @@ function viewSlip(id){
 function renderSlip(s){
   if(!s){app.innerHTML='<div class="panel"><h2>Không tìm thấy phiếu</h2><p class="hint">Link phiếu sai hoặc phiếu đã bị xoá.</p><a class="btn blue" href="#/">Về trang chủ</a></div>';return;}
   const F=FORMS[s.type],turn=isMyTurn(s);
-  let __n=0;const tl=s.steps.map((x,i)=>{if(x.mode==='skip'&&x.role!=='an_ninh')return '';__n++;const done=!!x.sig,isCur=s.status==='pending'&&i===s.currentStep,rej=s.status==='rejected'&&i===s.currentStep;
+  let __n=0;const tl=s.steps.map((x,i)=>{const nb=s.type==='N'&&NCC_BLANK.includes(x.role);if(x.mode==='skip'&&x.role!=='an_ninh'&&!nb)return '';__n++;if(nb){x={...x,sig:''};return `<li class="${i===0?'done':''}"><span class="d">${i===0?'✓':__n}</span><div><b>${esc(x.label)}</b><small>${i===0?'Lập phiếu: '+esc(x.name||s.createdByName||'')+' · '+esc(fmtDT(x.at))+' · ô ký để trống':'Để trống – trình ký sống trên bản in'}</small></div></li>`;}const done=!!x.sig,isCur=s.status==='pending'&&i===s.currentStep,rej=s.status==='rejected'&&i===s.currentStep;
     const idle=x.mode==='auto'?'Chèn chữ ký mẫu khi duyệt xong':x.mode==='skip'?(x.role==='an_ninh'?'Ký xác nhận tại cổng (bản giấy)':'Không cần ký (để trống)'):'Chưa đến lượt';
     return `<li class="${done?'done':rej?'rej':isCur?'cur':''}"><span class="d">${done?'✓':rej?'✕':__n}</span><div><b>${esc(x.label)}</b><small>${done?esc(x.name)+' · '+esc(fmtDT(x.at))+(x.mode==='auto'?' · chữ ký mẫu':''):rej?'Từ chối':isCur?'Đang chờ ký':idle}</small>${done?`<img src="${x.sig}" alt="Chữ ký ${esc(x.name)}">`:''}</div></li>`;}).join('');
   let act='';
@@ -1004,7 +1005,7 @@ async function doSign(s){
     const missing=[];
     const pendingManual=steps.some((x,i)=>i>0&&!x.sig&&!x.mode);
     if(!pendingManual){
-      const need=steps.map((x,i)=>x.mode==='auto'&&!x.sig?i:-1).filter(i=>i>=0);
+      const need=steps.map((x,i)=>x.mode==='auto'&&!x.sig&&!(s.type==='N'&&NCC_BLANK.includes(x.role))?i:-1).filter(i=>i>=0); // Trả NCC: CHT trình ký sống, không chèn chữ ký mẫu
       for(const i of need){const st=await DB.getStamp(steps[i].role);
         if(!st||!st.sig){missing.push(steps[i].label);continue;}
         steps[i]={...steps[i],name:st.name||'',sig:st.sig,at:now};}
