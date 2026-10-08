@@ -481,6 +481,7 @@ async function initFirebase(){
     // biên bản họp của người đề nghị (không đăng nhập / chưa cấp quyền): ghi biên bản trước rồi ghi ảnh theo id cố định, đọc lại theo id (không cần quyền liệt kê)
     saveBbhKhach:async(rec,photos)=>{const {id,...data}=rec;await F.setDoc(D('bbp/'+id),{...data,updatedAt:F.serverTimestamp()});
       for(let i=0;i<(photos||[]).length;i++)await F.setDoc(D('bbp_photos/'+id+'-'+i),{rid:id,idx:i,data:photos[i].data,cap:photos[i].cap||''});},
+    watchBbhMine:(email,cb,err)=>F.onSnapshot(F.query(F.collection(fs,'bbp'),F.where('khach','==',true),F.where('lap.email','==',String(email||'').toLowerCase())),s=>cb(s.docs.map(d=>({...norm(d.data()),id:d.id}))),err),
     getBbhKhach:async(id,n)=>{const s=await F.getDoc(D('bbp/'+id));if(!s.exists())return null;const r={...norm(s.data()),id},ph=[];
       for(let i=0;i<(n??r.photoCount??0);i++){try{const p=await F.getDoc(D('bbp_photos/'+id+'-'+i));if(p.exists())ph.push({data:p.data().data,cap:p.data().cap||''});}catch(e){}}return {rec:r,photos:ph};},
     deleteBbp:async id=>{const ph=await F.getDocs(F.query(F.collection(fs,'bbp_photos'),F.where('rid','==',id)));for(const d of ph.docs)await F.deleteDoc(d.ref);await F.deleteDoc(D('bbp_files/'+id)).catch(()=>{});await F.deleteDoc(D('bbp/'+id));},
@@ -539,6 +540,7 @@ function initMock(){
     watchBbpGia:cb=>{gWs.push(cb);setTimeout(()=>cb(ld().bbg||null),0);return()=>{const i=gWs.indexOf(cb);if(i>=0)gWs.splice(i,1);};},
     saveBbpGia:async items=>{const d=ld();d.bbg={items,by:ME.name||'',updatedAt:Date.now()};sv(d);gWs.forEach(f=>f(d.bbg));},
     saveBbhKhach:async(rec,photos)=>{const d=ld();d.bbp=d.bbp||{};d.bbph=d.bbph||{};d.bbph[rec.id]=(photos||[]).map(p=>({data:p.data,cap:p.cap||''}));const {id:_x,...data}=rec;d.bbp[rec.id]={...data,updatedAt:Date.now()};sv(d);emitB();},
+    watchBbhMine:(email,cb)=>{const f=l=>cb(l.filter(r=>r.khach&&r.lap&&r.lap.email===String(email||'').toLowerCase()));bbWs.push(f);setTimeout(()=>f(listB()),0);return()=>{const i=bbWs.indexOf(f);if(i>=0)bbWs.splice(i,1);};},
     getBbhKhach:async id=>{const d=ld(),r=(d.bbp||{})[id];return r?{rec:{...r,id},photos:((d.bbph||{})[id]||[]).map(p=>({...p}))}:null;},
     deleteBbp:async id=>{const d=ld();delete (d.bbp||{})[id];delete (d.bbf||{})[id];delete (d.bbph||{})[id];sv(d);emitB();},
     findSteelHash:async h=>{if(!h)return null;const d=ld();const r=Object.values(d.steel||{}).find(x=>x.img_hash===h)||Object.values(d.sq||{}).find(x=>x.hash===h);return r?{doi:r.doi,ngay:r.ngay}:null;}
@@ -1934,7 +1936,7 @@ function bbViewer(all,rec,photos,files,mode){
 const BBH_ST={nhap:'Nháp',xong:'Hoàn tất',cho_duyet:'Hoàn tất',da_duyet:'Hoàn tất',tra_lai:'Nháp'};
 const bbhDone=r=>['xong','cho_duyet','da_duyet'].includes(r.status);
 const bbKind=k=>`<nav class="bb-kind" aria-label="Loại biên bản"><a href="#/bien-ban" class="${k==='phat'?'on':''}">Biên bản phạt NTP-ĐTC</a><a href="#/bien-ban-hop" class="${k==='hop'?'on':''}">Biên bản họp</a></nav>`;
-const bbhKhach=()=>!(ME.member||ME.isAdmin); // người đề nghị: không đăng nhập hoặc chưa được cấp quyền
+const bbhKhach=()=>!(ME.member||ME.isAdmin); // người đề nghị: đăng nhập Google nhưng chưa được cấp quyền
 const bbhLapCv0=()=>ME.isAdmin?'CHP NTC':(!ME.member?'':(ME.roles&&ME.roles.includes('thu_kho')?'Thủ kho NTC':'Giám sát NTC'));
 const bbhBlank=()=>({id:bbUid(),loai:'hop',status:'nhap',so:'',ngay:today(),gioBD:bbNowT(),gioKT:'',hangMuc:'',viTri:'',doi:'',ntpTen:'',ntpCv:'',
   lapCv:bbhLapCv0(),them:[],chuDe:'',ghiTho:'',noiDung:'',ghiChu:'',createdAt:Date.now()});
@@ -2014,17 +2016,17 @@ async function bbhAI(rec){
   const r=await fetch(OCR_URL+'/sap-xep',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text:rec.ghiTho,chuDe:rec.chuDe,doi:rec.doi})});
   const j=await r.json().catch(()=>({error:'máy chủ trả về dữ liệu không hợp lệ'}));if(!r.ok||j.error)throw new Error(j.error||('HTTP '+r.status));return j;}
 
-const BBH_KL='bbh-khach',bbhKList=()=>{try{return JSON.parse(localStorage.getItem(BBH_KL)||'[]')||[];}catch(e){return [];}},
-  bbhKSave=l=>{try{localStorage.setItem(BBH_KL,JSON.stringify(l.slice(0,30)));}catch(e){}};
 function viewBbh(tab){
-  const KH=bbhKhach(); // người đề nghị dùng không cần đăng nhập, không ký, không duyệt; biên bản phạt vẫn chỉ cán bộ NTC
+  if(!U)return needLogin('Đăng nhập bằng tài khoản Google của bạn để lập biên bản họp. Không cần chờ cấp quyền — đăng nhập xong là dùng được ngay; biên bản được ghi rõ người lập theo email.');
+  const KH=bbhKhach(); // người đề nghị: đăng nhập Google, không ký, không duyệt; biên bản phạt vẫn chỉ cán bộ NTC
+  let mineK=[]; // biên bản họp người đề nghị đã lập (theo email)
   tab=['lap','luu'].includes(tab)?tab:'lap';
   let all=[],cur=null,photos=[],dirtyPhotos=false,ldT=null,needPh=false;
   const saveLocal=()=>{clearTimeout(ldT);ldT=setTimeout(()=>{try{if(cur)localStorage.setItem('bbh-cur',JSON.stringify({cur}));}catch(e){}},400);};
   const T=(k,l,n)=>`<button type="button" data-tab="${k}" class="btn sm ${tab===k?'blue':''}">${l}${n!=null?` <span class="badge" style="padding:1px 8px">${n}</span>`:''}</button>`;
   app.innerHTML=`<div class="eyebrow">${KH?'Dự án HH12 Cổ Loa · Dành cho người đề nghị / đội thi công':'Biên bản hiện trường · Họp với đội thi công / nhà thầu'}</div>${canBbp()?bbKind('hop'):''}<h2 style="margin:4px 0 12px;font-size:26px;color:var(--navy)">Biên bản họp</h2>
    <nav class="row" id="bbTabs" aria-label="Mục biên bản họp"></nav><div id="bbBody"></div>`;
-  const drawTabs=()=>{$('bbTabs').innerHTML=T('lap','Lập biên bản họp')+(KH?T('luu','Biên bản của tôi (trên máy này)',bbhKList().length):T('luu','Biên bản đã lập',all.filter(bbhDone).length));};
+  const drawTabs=()=>{$('bbTabs').innerHTML=T('lap','Lập biên bản họp')+(KH?T('luu','Biên bản của tôi',mineK.length):T('luu','Biên bản đã lập',all.filter(bbhDone).length));};
   drawTabs();const body=$('bbBody');
   const go=t=>{tab=t;try{history.replaceState(null,'','#/bien-ban-hop/'+t);}catch(_){}drawTabs();R[t]();};
   $('bbTabs').onclick=e=>{const b=e.target.closest('[data-tab]');if(!b||b.dataset.tab===tab)return;go(b.dataset.tab);};
@@ -2034,7 +2036,7 @@ function viewBbh(tab){
 
   /* ===== Lập / sửa ===== */
   const renderLap=()=>{
-    body.innerHTML=`<div id="bbLap"><section class="panel"><div class="row" style="justify-content:space-between"><h2>${KH?'Lập biên bản họp':'Biên bản họp đang làm'}</h2><button type="button" class="btn sm" id="bbNew">+ Biên bản họp mới</button></div>${KH?'<p class="hint" style="margin:0">Không cần đăng nhập, không cần ký, không cần duyệt. Bản đang soạn tự lưu trên máy này. Bấm "Hoàn tất &amp; xuất PDF" để được cấp số biên bản và tải PDF / gửi Zalo.</p>':''}<div id="bbMine" style="display:flex;flex-direction:column;gap:8px"${KH?' hidden':''}></div></section>
+    body.innerHTML=`<div id="bbLap"><section class="panel"><div class="row" style="justify-content:space-between"><h2>${KH?'Lập biên bản họp':'Biên bản họp đang làm'}</h2><button type="button" class="btn sm" id="bbNew">+ Biên bản họp mới</button></div>${KH?'<p class="hint" style="margin:0">Không cần ký, không cần duyệt. Bản đang soạn tự lưu trên máy này. Bấm "Hoàn tất &amp; xuất PDF" để được cấp số biên bản và tải PDF / gửi Zalo.</p>':''}<div id="bbMine" style="display:flex;flex-direction:column;gap:8px"${KH?' hidden':''}></div></section>
     <div id="hEditing" class="msg" hidden style="margin-top:16px"></div>
     <section class="panel"><h2><i>1</i>Thời gian, thành phần, vị trí</h2>
      <div class="grid">
@@ -2087,7 +2089,7 @@ function viewBbh(tab){
       $('bbMine').innerHTML=l.length?l.map(r=>card(r,`<button type="button" class="btn sm line" data-edit="${r.id}">Mở để sửa</button><button type="button" class="btn sm" data-delr="${r.id}" style="color:var(--bad);border-color:var(--bad)">Xoá</button>`)).join(''):'<p class="hint">Không có nháp. Điền các bước bên dưới để lập biên bản họp mới.</p>';
       $('bbMine').querySelectorAll('[data-edit]').forEach(b=>b.onclick=()=>{const r=all.find(x=>x.id===b.dataset.edit);if(r)openEdit(r,b);});
       $('bbMine').querySelectorAll('[data-delr]').forEach(b=>b.onclick=async()=>{if(!confirm('Xoá biên bản họp nháp này (cả ảnh)?'))return;try{await DB.deleteBbp(b.dataset.delr);if(cur&&cur.id===b.dataset.delr)startNew();toast('Đã xoá.');}catch(e){toast('Không xoá được: '+(e.code||e.message));}});};
-    const startNew=()=>{cur=bbhBlank();if(KH){try{const k=JSON.parse(localStorage.getItem('bbh-nguoi')||'{}');cur.lapTen=k.ten||'';cur.lapCv=k.cv||'';}catch(e){}}photos=[];dirtyPhotos=false;try{localStorage.removeItem('bbh-cur');}catch(e){}load();setMsg('');};
+    const startNew=()=>{cur=bbhBlank();if(KH){try{const k=JSON.parse(localStorage.getItem('bbh-nguoi')||'{}');cur.lapTen=k.ten||ME.name||U.name||'';cur.lapCv=k.cv||'';}catch(e){}}photos=[];dirtyPhotos=false;try{localStorage.removeItem('bbh-cur');}catch(e){}load();setMsg('');};
     if(!cur){try{const d=JSON.parse(localStorage.getItem('bbh-cur')||'null');if(d&&d.cur&&d.cur.loai==='hop'){cur=d.cur;needPh=true;}}catch(e){}}
     if(!cur){startNew();}else{load();}mine();
     renderLap.refresh=async()=>{mine();fillDoi();
@@ -2142,7 +2144,7 @@ function viewBbh(tab){
         if(!r.so){const n=await DB.nextSeq('BBH_'+PROJECT_CODE);r.so='BBH-'+PROJECT_CODE+'-'+String(n).padStart(3,'0');}
         r.status='xong';r.xongAt=Date.now();
         const ph=photos.slice();
-        if(KH){await DB.saveBbhKhach(r,ph);bbhKSave([r,...bbhKList().filter(x=>x.id!==r.id)]);try{localStorage.setItem('bbh-nguoi',JSON.stringify({ten:r.lap.name,cv:r.lapCv}));}catch(e){}drawTabs();}
+        if(KH){await DB.saveBbhKhach(r,ph);try{localStorage.setItem('bbh-nguoi',JSON.stringify({ten:r.lap.name,cv:r.lapCv}));}catch(e){}}
         else await DB.saveBbp(r,null,(dirtyPhotos||!all.some(x=>x.id===r.id))?ph:null);
         const so=r.so;startNew();setMsg(`Đã lưu ${so}. Đang tạo PDF…`,'ok');
         const tabN=KH?'Biên bản của tôi':'Biên bản đã lập';
@@ -2172,17 +2174,17 @@ function viewBbh(tab){
     renderLuu.refresh=draw;};
   const kGet=async r=>{try{const o=await DB.getBbhKhach(r.id,r.photoCount);if(o)return o;}catch(e){}return {rec:r,photos:[]};}; // không tải được ảnh thì vẫn in phần chữ
   const renderKLuu=()=>{
-    body.innerHTML=`<section class="panel"><h2>Biên bản họp tôi đã lập</h2><p class="hint">Danh sách lưu trên máy / trình duyệt này (30 biên bản gần nhất). Bản chính đã gửi về Ban chỉ huy công trường.</p><div id="lList" style="display:flex;flex-direction:column;gap:8px"></div></section>`;
-    const draw=()=>{const l=bbhKList();
-      $('lList').innerHTML=l.length?l.map(r=>card(r,`<button type="button" class="btn sm line" data-view="${r.id}">Xem</button><button type="button" class="btn sm red" data-pdf="${r.id}">PDF / Zalo</button><button type="button" class="btn sm" data-rm="${r.id}">Bỏ khỏi danh sách</button>`)).join(''):'<p class="hint">Chưa có biên bản họp nào lập trên máy này.</p>';
-      $('lList').querySelectorAll('[data-view]').forEach(b=>b.onclick=async()=>{const r=bbhKList().find(x=>x.id===b.dataset.view);if(!r)return;b.disabled=true;const o=await kGet(r);bbhViewer(o.rec,o.photos,'view');b.disabled=false;});
-      $('lList').querySelectorAll('[data-pdf]').forEach(b=>b.onclick=async()=>{const r=bbhKList().find(x=>x.id===b.dataset.pdf);if(!r)return;b.disabled=true;toast('Đang tạo PDF…');
-        try{const o=await kGet(r);const blob=await bbhMakePdf(o.rec,o.photos);await deliverFile(bbhPdfName(o.rec),blob,'application/pdf');}catch(e){toast('Không tạo được PDF: '+(e.message||e));}b.disabled=false;});
-      $('lList').querySelectorAll('[data-rm]').forEach(b=>b.onclick=()=>{if(!confirm('Bỏ biên bản này khỏi danh sách trên máy? (Bản đã gửi về BCH vẫn còn.)'))return;bbhKSave(bbhKList().filter(x=>x.id!==b.dataset.rm));draw();drawTabs();});};
+    body.innerHTML=`<section class="panel"><h2>Biên bản họp tôi đã lập</h2><p class="hint">Biên bản lập bằng tài khoản ${esc(U.email)} — mở được trên mọi máy khi đăng nhập đúng tài khoản này. Bản chính đã gửi về Ban chỉ huy công trường.</p><div id="lList" style="display:flex;flex-direction:column;gap:8px"></div></section>`;
+    const draw=()=>{const l=mineK;
+      $('lList').innerHTML=l.length?l.map(r=>card(r,`<button type="button" class="btn sm line" data-view="${r.id}">Xem</button><button type="button" class="btn sm red" data-pdf="${r.id}">PDF / Zalo</button>`)).join(''):'<p class="hint">Bạn chưa lập biên bản họp nào.</p>';
+      $('lList').querySelectorAll('[data-view]').forEach(b=>b.onclick=async()=>{const r=mineK.find(x=>x.id===b.dataset.view);if(!r)return;b.disabled=true;const o=await kGet(r);bbhViewer(o.rec,o.photos,'view');b.disabled=false;});
+      $('lList').querySelectorAll('[data-pdf]').forEach(b=>b.onclick=async()=>{const r=mineK.find(x=>x.id===b.dataset.pdf);if(!r)return;b.disabled=true;toast('Đang tạo PDF…');
+        try{const o=await kGet(r);const blob=await bbhMakePdf(o.rec,o.photos);await deliverFile(bbhPdfName(o.rec),blob,'application/pdf');}catch(e){toast('Không tạo được PDF: '+(e.message||e));}b.disabled=false;});};
     draw();renderKLuu.refresh=draw;};
   const R={lap:renderLap,luu:KH?renderKLuu:renderLuu};
   R[tab]();
-  if(KH){unwatch=()=>{};return;}
+  if(KH){const unk=DB.watchBbhMine(U.email,list=>{mineK=list.filter(r=>r.loai==='hop').sort((a,b)=>String(b.so).localeCompare(String(a.so)));drawTabs();const f=R[tab];if(f.refresh)f.refresh();},e=>toast('Lỗi tải biên bản: '+(e.code||e.message)));
+    unwatch=()=>{try{unk&&unk();}catch(e){}};return;}
   const un=DB.watchBbp(list=>{all=list.filter(r=>r.loai==='hop');drawTabs();const f=R[tab];if(f.refresh)f.refresh();},e=>toast('Lỗi tải biên bản: '+(e.code||e.message)));
   unwatch=()=>{try{un&&un();}catch(e){}};
 }
