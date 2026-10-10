@@ -237,7 +237,7 @@ pre.bb-gen{margin:0;white-space:pre-wrap;font:14px/1.55 "Times New Roman",Times,
 .bbs .bb-nd.s1{font-size:13px;line-height:22px;background-size:100% 22px,5px 22px;background-image:linear-gradient(to bottom,#fff 0,#fff 21px,transparent 21px),linear-gradient(to right,#666 0,#666 2px,transparent 2px)}
 .bbs .bb-nd.s2{font-size:12px;line-height:19px;background-size:100% 19px,5px 19px;background-image:linear-gradient(to bottom,#fff 0,#fff 18px,transparent 18px),linear-gradient(to right,#666 0,#666 2px,transparent 2px)}
 .bbs .bb-end{border-top:1px solid #222;padding:5px 8px;line-height:1.35}.bbs .bb-end .bb-s{display:inline-block;min-width:30px}
-.bbs .bb-sg{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:1px;background:#222;border-top:1px solid #222}
+.bbs .bb-sg{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:1px;background:#222;border-top:1px solid #222}
 .bbs .bb-sg>div{background:#fff;height:176px;padding:4px 7px 6px;display:flex;flex-direction:column}
 .bbs .bb-rl{font-size:12.5px;font-style:italic;line-height:1.2}.bbs .bb-im{flex:1;display:flex;align-items:center;justify-content:center;min-height:0}
 .bbs .bb-im img{max-width:100%;max-height:78px}.bbs .bb-rf{font-size:12px;font-style:italic;color:#8a1c14;text-align:center}
@@ -1418,7 +1418,7 @@ const bbDbOf=r=>r.tongDenBu!=null?r.tongDenBu:bbInt(r.denBu);
 const bbNeedDb=v=>!!v&&v.a.some(a=>/^Đền bù/.test(a));
 const BB_MUC={nhe:'Nhẹ',tb:'Trung bình',nang:'Nặng'};
 const BB_MUC_HINT={nhe:'≤ 10 cái/cây, thiệt hại nhỏ, khắc phục ngay tại chỗ',tb:'11–50 cái/cây, hoặc phải dừng việc để khắc phục',nang:'> 50 cái/cây, thiệt hại lớn, ảnh hưởng an toàn hoặc cố ý'};
-const BB_ST={nhap:'Nháp',cho_duyet:'Chờ CHP duyệt',da_duyet:'Đã duyệt',tra_lai:'Bị trả lại'};
+const BB_ST={nhap:'Nháp',cho_duyet:'Chờ duyệt (bản cũ)',da_duyet:'Hoàn tất',tra_lai:'Bị trả lại'}; // không còn bước CHP duyệt: hoàn tất là chốt (status giữ tên da_duyet để tương thích dữ liệu cũ)
 const BB_STC={nhap:'',cho_duyet:'b-pending',da_duyet:'b-done',tra_lai:'b-rejected'};
 const canBbp=()=>!!(U&&(ME.isAdmin||ME.member)); // mọi giám sát (tài khoản đã được cấp quyền) đều lập được biên bản
 const bbVnd=n=>(Math.round(Number(n)||0)).toLocaleString('vi-VN');
@@ -1482,7 +1482,7 @@ function bbText(all,rec,nPhotos){
 function bbHead(rec,title){
   return `<div class="bb-shd"><div class="bb-lg"><img src="${BB_LOGO}" alt=""></div><div class="bb-rc">
    <div class="bb-c">Dự án: DỰ ÁN KHÁCH SẠN, VĂN PHÒNG, BẢO TÀNG HH12 CỔ LOA</div>
-   <div class="bb-c">Ngày: ${esc(fmtD(rec.ngay))}</div><div class="bb-c">Số: ${esc(rec.so||'(cấp khi gửi duyệt)')}</div>
+   <div class="bb-c">Ngày: ${esc(fmtD(rec.ngay))}</div><div class="bb-c">Số: ${esc(rec.so||'(cấp khi hoàn tất)')}</div>
    <div class="bb-tt">${title}</div></div></div>`;
 }
 function bbSheets(all,rec,photos,files){
@@ -1493,8 +1493,7 @@ function bbSheets(all,rec,photos,files){
   const cells=[
     {rl:'Người lập',img:files.sigLap,ten:lap.name,ngay:files.sigLap?fmtD(rec.ngay):''},
     {rl:'Đại diện '+(doi||'nhà thầu'),img:files.sigNtp,ten:rec.ntpTen,ngay:(files.sigNtp||rec.tuChoi)?fmtD(rec.ngay):'',refuse:rec.tuChoi},
-    {rl:'Người chứng kiến',img:'',ten:rec.tuChoi?rec.chungKien:'',ngay:''},
-    {rl:'CHP NTC – Duyệt',img:ok?files.sigDuyet:'',ten:BB_CHP,ngay:ok?fmtD(rec.duyet.date||''):''}];
+    {rl:'Người chứng kiến',img:'',ten:rec.tuChoi?rec.chungKien:'',ngay:''}];
   let out=`<div class="sheet bbs"><div class="bb-fr">${bbHead(rec,'SITE MINUTES / BIÊN BẢN HIỆN TRƯỜNG')}
    <div class="bb-sb">
     <div class="bb-ln"><span>Hôm nay vào lúc:</span><span class="bb-s">${esc(h||'')}</span><span>giờ</span><span class="bb-s">${esc(m||'')}</span><span>, ngày</span><span class="bb-s" style="min-width:100px">${esc(fmtD(rec.ngay))}</span></div>
@@ -1554,12 +1553,12 @@ async function bbPdf(all,r,mode){
 /* ---------- Excel tổng hợp phạt cho QS ---------- */
 async function bbExcel(list,info){
   if(typeof ExcelJS==='undefined'){toast('Chưa tải được thư viện Excel, kiểm tra mạng.');return;}
-  if(!list.length){toast('Không có biên bản đã duyệt trong phạm vi lọc.');return;}
+  if(!list.length){toast('Không có biên bản đã hoàn tất trong phạm vi lọc.');return;}
   const wb=new ExcelJS.Workbook();wb.creator='Phiếu điện tử HH12';
   const NAVY='FF0B2545',GOLD='FFC9A24B',RED='FFFDE2E1',BD={style:'thin',color:{argb:'FFB7C3D6'}},BORD={top:BD,bottom:BD,left:BD,right:BD},FN='Times New Roman',MF='#,##0';
   const cell=(ws,r,c,v,o={})=>{const x=ws.getCell(r,c);if(v!==undefined)x.value=v;x.border=BORD;x.font={name:FN,bold:!!o.bold,color:o.color?{argb:o.color}:undefined};x.alignment={vertical:'middle',wrapText:true,horizontal:o.left?'left':'center'};if(o.fill)x.fill={type:'pattern',pattern:'solid',fgColor:{argb:o.fill}};if(o.fmt)x.numFmt=o.fmt;return x;};
   const head=(ws,r,cols)=>{cols.forEach((h,i)=>cell(ws,r,i+1,h,{bold:true,color:'FFFFFFFF',fill:NAVY}));ws.getRow(r).height=32;};
-  const title=(ws,t,n)=>{ws.getCell(1,1).value=t;ws.mergeCells(1,1,1,n);ws.getCell(1,1).font={name:FN,bold:true,size:14,color:{argb:NAVY}};ws.getCell(2,1).value=`Dự án HH12 Cổ Loa · ${info} · chỉ tính biên bản đã được CHP duyệt · xuất ngày ${fmtD(today())}`;ws.mergeCells(2,1,2,n);ws.getCell(2,1).font={name:FN,italic:true};};
+  const title=(ws,t,n)=>{ws.getCell(1,1).value=t;ws.mergeCells(1,1,1,n);ws.getCell(1,1).font={name:FN,bold:true,size:14,color:{argb:NAVY}};ws.getCell(2,1).value=`Dự án HH12 Cổ Loa · ${info} · chỉ tính biên bản đã hoàn tất · xuất ngày ${fmtD(today())}`;ws.mergeCells(2,1,2,n);ws.getCell(2,1).font={name:FN,italic:true};};
   // 1. Tổng hợp theo đội
   const M=new Map();list.forEach(r=>{const k=doiStd(r.doi);if(!M.has(k))M.set(k,{doi:k,bb:0,loi:0,phat:0,db:0,lan:0});const o=M.get(k);o.bb++;o.loi+=(r.rows||[]).length;o.phat+=r.tongPhat||0;o.db+=bbDbOf(r);(r.rows||[]).forEach(x=>{o.lan=Math.max(o.lan,x.lan||1);});});
   const T=[...M.values()].sort((a,b)=>(b.phat+b.db)-(a.phat+a.db));
@@ -1601,7 +1600,7 @@ function viewBbp(tab){
   const T=(k,l,n)=>`<button type="button" data-tab="${k}" class="btn sm ${tab===k?'blue':''}">${l}${n?` <span class="badge b-rejected" style="padding:1px 8px">${n}</span>`:''}</button>`;
   app.innerHTML=`<div class="eyebrow">Biên bản hiện trường · Vi phạm quy định quản lý, sử dụng VTTB</div>${bbKind('phat')}<h2 style="margin:4px 0 12px;font-size:26px;color:var(--navy)">Biên bản phạt NTP-ĐTC</h2>
    <nav class="row" id="bbTabs" aria-label="Mục biên bản"></nav><div id="bbBody"></div>`;
-  const drawTabs=()=>{const n=all.filter(r=>r.status==='cho_duyet').length;$('bbTabs').innerHTML=(canBbp()?T('lap','Lập biên bản'):'')+T('duyet','Chờ duyệt',n)+T('luu','Đã duyệt')+T('tong','Tổng hợp theo đội')+T('gia','Bảng giá đền bù');};
+  const drawTabs=()=>{const n=all.filter(r=>r.status==='cho_duyet').length;$('bbTabs').innerHTML=(canBbp()?T('lap','Lập biên bản'):'')+(n||tab==='duyet'?T('duyet','Chờ duyệt (bản cũ)',n):'')+T('luu','Đã lập')+T('tong','Tổng hợp theo đội')+T('gia','Bảng giá đền bù');};
   drawTabs();
   const body=$('bbBody');
   $('bbTabs').onclick=e=>{const b=e.target.closest('[data-tab]');if(!b||b.dataset.tab===tab)return;tab=b.dataset.tab;try{history.replaceState(null,'','#/bien-ban/'+tab);}catch(_){}drawTabs();R[tab]();};
@@ -1644,8 +1643,8 @@ function viewBbp(tab){
     <section class="panel"><h2><i>4</i>Hình ảnh hiện trường</h2><p class="hint">Bắt buộc ít nhất 1 ảnh, tối đa 12 ảnh, in ở phụ lục sau biên bản (6 ảnh/trang). Trên điện thoại bấm để chụp trực tiếp.</p>
      <div class="row"><input id="bPick" type="file" accept="image/*" multiple style="max-width:320px"><span id="bPhInfo" class="hint"></span></div>
      <div id="bThumbs" class="bb-thumbs"></div></section>
-    <section class="panel"><h2><i>5</i>Gửi CHP duyệt</h2>
-     <p class="hint">Không cần chữ ký người lập và các bên. Biên bản gửi CHP duyệt (vì có tiền khấu trừ thanh toán), duyệt xong mới tính vào Tổng hợp và xuất PDF chính thức.</p>
+    <section class="panel"><h2><i>5</i>Hoàn tất</h2>
+     <p class="hint">Không cần ký, không cần duyệt. Bấm "Hoàn tất &amp; xuất PDF" là biên bản được cấp số, tính ngay vào Tổng hợp theo đội và tải PDF về máy / gửi Zalo. Kiểm tra kỹ số tiền ở "Xem trước bản in" trước khi bấm.</p>
      <div class="bb-sigs" hidden>
       <div class="bb-sig"><h3 class="g">Người lập · <span id="bLapName"></span></h3><div id="bLapSig"></div></div>
       <div class="bb-sig"><h3 class="g" id="bNtpT">Đại diện nhà thầu</h3><div id="bNtpSig"></div>
@@ -1654,7 +1653,7 @@ function viewBbp(tab){
         <label class="f" for="bTcLd">Lý do từ chối *<input id="bTcLd" data-k="tuChoiLyDo"></label>
         <label class="f" for="bCk">Người chứng kiến (họ tên, đơn vị) *<input id="bCk" data-k="chungKien"></label></div></div>
      </div>
-     <div class="row"><button type="button" class="btn" id="bDraft">Lưu nháp</button><button type="button" class="btn" id="bPrev">Xem trước bản in</button><button type="button" class="btn red" id="bSend">Gửi CHP duyệt</button></div>
+     <div class="row"><button type="button" class="btn" id="bDraft">Lưu nháp</button><button type="button" class="btn" id="bPrev">Xem trước bản in</button><button type="button" class="btn red" id="bSend">Hoàn tất &amp; xuất PDF</button></div>
      <div id="bMsg" class="msg" hidden></div></section></div>`;
     const setMsg=(t,k)=>{$('bMsg').hidden=!t;$('bMsg').className='msg '+(k||'');$('bMsg').textContent=t||'';};
     const known=()=>[...new Set([...LISTS.DOI,...all.map(r=>r.doi).filter(Boolean)])].sort((a,b)=>a.localeCompare(b,'vi'));
@@ -1789,15 +1788,17 @@ function viewBbp(tab){
     $('bSend').onclick=async()=>{grabNtp();const miss=validate();
       if(miss.length){setMsg('Còn thiếu: '+miss.join(', ')+'.','err');const f=document.querySelector('#bbBody .invalid');if(f)f.scrollIntoView({block:'center'});return;}
       {const t0=bbTotals(all,cur),nd=t0.rows.filter(r=>bbNeedDb(r.v)).map(r=>r.code);if(nd.length&&!t0.denBu&&!confirm(`Lỗi ${nd.join(', ')} có yêu cầu đền bù thiệt hại nhưng chưa nhập thiết bị đền bù.\nBấm OK nếu không có thiết bị hư hỏng/mất, Huỷ để quay lại nhập.`))return;}
-      $('bSend').disabled=true;setMsg('Đang gửi CHP duyệt…');
+      $('bSend').disabled=true;setMsg('Đang lưu biên bản…');
       try{
         const rows=bbRows(all,cur),r=recOut();
         r.rows=rows.map(x=>({code:x.code,sl:x.sl,mota:x.mota,muc:x.muc,mucTay:x.mucTay,tien:x.tien,tienTay:true,lan:x.lan}));
         if(!r.gioKT){const n=bbNowT();if(r.ngay===today()&&n>=r.gioBD)r.gioKT=n;else{const [hh,mm]=r.gioBD.split(':').map(Number),t=Math.min(23*60+59,hh*60+mm+30);r.gioKT=pad2(Math.floor(t/60))+':'+pad2(t%60);}}
         if(!r.so){const n=await DB.nextSeq('BBP_'+PROJECT_CODE);r.so='BBP-'+PROJECT_CODE+'-'+String(n).padStart(3,'0');}
-        r.status='cho_duyet';r.submittedAt=Date.now();r.traLai=null;
-        r.tuChoi=false;await DB.saveBbp(r,null,(dirtyPhotos||!all.some(x=>x.id===r.id))?photos:null);
-        const so=r.so;startNew();setMsg(`Đã gửi ${so} cho CHP duyệt.`,'ok');window.scrollTo({top:0,behavior:'smooth'});
+        r.status='da_duyet';r.submittedAt=Date.now();r.traLai=null;r.duyet={at:Date.now(),date:today(),boi:r.lap.name||'',tuDong:true};
+        r.tuChoi=false;const ph=photos.slice();await DB.saveBbp(r,null,(dirtyPhotos||!all.some(x=>x.id===r.id))?ph:null);
+        const so=r.so;startNew();setMsg(`Đã lưu ${so}. Đang tạo PDF…`,'ok');window.scrollTo({top:0,behavior:'smooth'});
+        try{const fl=await DB.getBbpFiles(r.id).catch(()=>({}));const blob=await bbMakePdf(all,r,ph,fl);await deliverFile(bbPdfName(r),blob,'application/pdf');setMsg(`Đã hoàn tất ${so} và xuất PDF. Xem lại ở mục "Đã lập".`,'ok');}
+        catch(e){setMsg(`Đã lưu ${so}, nhưng chưa tạo được PDF (${e.message||e}). Vào mục "Đã lập" bấm PDF để tạo lại.`,'err');}
       }catch(e){setMsg('Không gửi được: '+(e.code||e.message),'err');}
       $('bSend').disabled=false;};
   };
@@ -1810,7 +1811,7 @@ function viewBbp(tab){
     body.querySelectorAll('[data-view]').forEach(b=>b.onclick=()=>openRec(b.dataset.view,b));};
   let fD='',fTh='',fQ='';
   const renderLuu=()=>{
-    body.innerHTML=`<section class="panel"><h2>Biên bản phạt NTP-ĐTC đã duyệt</h2>
+    body.innerHTML=`<section class="panel"><h2>Biên bản phạt NTP-ĐTC đã lập</h2>
      <div class="grid"><label class="f" for="lD">Đội<select id="lD"><option value="">Tất cả</option>${[...new Set(all.map(r=>r.doi).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'vi')).map(d=>`<option${d===fD?' selected':''}>${esc(d)}</option>`).join('')}</select></label>
       <label class="f" for="lT">Tháng<input id="lT" type="month" value="${esc(fTh)}"></label><label class="f" for="lQ">Tìm số biên bản / nội dung<input id="lQ" type="search" value="${esc(fQ)}" placeholder="VD: BBP-HH12-007, giằng"></label></div>
      <div id="lList" style="display:flex;flex-direction:column;gap:8px"></div></section>`;
@@ -1827,15 +1828,15 @@ function viewBbp(tab){
   const renderTong=()=>{
     body.innerHTML=`<section class="panel"><div class="row" style="justify-content:space-between"><h2>Tổng hợp phạt theo đội</h2>
       <div class="row"><label class="f" for="tT" style="width:200px">Tháng (để trống = cả dự án)<input id="tT" type="month" value="${esc(tTh)}"></label><button type="button" class="btn sm red" id="tX" style="align-self:flex-end">Xuất Excel cho QS</button></div></div>
-     <div id="tBox" class="scroll"></div><p class="hint">Chỉ tính biên bản đã được CHP duyệt. Cột "Lần cao nhất" cho biết đội đã chạm mức lần 3 (mời ra khỏi công trường) hay chưa.</p></section>`;
+     <div id="tBox" class="scroll"></div><p class="hint">Chỉ tính biên bản đã hoàn tất. Cột "Lần cao nhất" cho biết đội đã chạm mức lần 3 (mời ra khỏi công trường) hay chưa.</p></section>`;
     const list=()=>all.filter(r=>r.status==='da_duyet'&&(!tTh||String(r.ngay||'').startsWith(tTh)));
     const draw=()=>{const M=new Map();list().forEach(r=>{const k=doiStd(r.doi);if(!M.has(k))M.set(k,{doi:k,bb:0,loi:0,phat:0,db:0,tong:0,lan:0});const o=M.get(k);o.bb++;o.loi+=(r.rows||[]).length;o.phat+=r.tongPhat||0;o.db+=bbDbOf(r);o.tong+=r.tongCong||0;(r.rows||[]).forEach(x=>{o.lan=Math.max(o.lan,x.lan||1);});});
       const rows=[...M.values()].sort((a,b)=>b.tong-a.tong),s=rows.reduce((a,o)=>({bb:a.bb+o.bb,loi:a.loi+o.loi,phat:a.phat+o.phat,db:a.db+o.db,tong:a.tong+o.tong}),{bb:0,loi:0,phat:0,db:0,tong:0});
       $('tBox').innerHTML=rows.length?`<table class="t"><thead><tr><th>Đội / nhà thầu</th><th>Số BB</th><th>Số lỗi</th><th>Tiền phạt</th><th>Đền bù</th><th>Tổng khấu trừ</th><th>Lần cao nhất</th></tr></thead><tbody>${rows.map(o=>`<tr><td>${esc(o.doi)}</td><td>${o.bb}</td><td>${o.loi}</td><td>${bbVnd(o.phat)}</td><td>${bbVnd(o.db)}</td><td><b>${bbVnd(o.tong)}</b></td><td><span class="bb-chip ${o.lan>=3?'l3':o.lan===2?'l2':'l1'}">Lần ${o.lan}${o.lan>=3?' · mời ra khỏi CT':''}</span></td></tr>`).join('')}
         <tr><td><b>Tổng</b></td><td><b>${s.bb}</b></td><td><b>${s.loi}</b></td><td><b>${bbVnd(s.phat)}</b></td><td><b>${bbVnd(s.db)}</b></td><td><b>${bbVnd(s.tong)}</b></td><td></td></tr></tbody></table>`:'<p class="hint">Chưa có biên bản đã duyệt trong phạm vi này.</p>';
       const out=all.filter(r=>r.status==='da_duyet').length-list().length,pend=all.filter(r=>r.status==='cho_duyet'&&(!tTh||String(r.ngay||'').startsWith(tTh))).length,nt=[];
-      if(out>0)nt.push(`Có <b>${out}</b> biên bản đã duyệt nằm ngoài tháng đang lọc — <button type="button" class="btn sm" id="tAll">Xem cả dự án</button>`);
-      if(pend>0)nt.push(`<b>${pend}</b> biên bản đang chờ CHP duyệt (chưa tính vào tổng hợp).`);
+      if(out>0)nt.push(`Có <b>${out}</b> biên bản đã hoàn tất nằm ngoài tháng đang lọc — <button type="button" class="btn sm" id="tAll">Xem cả dự án</button>`);
+      if(pend>0)nt.push(`<b>${pend}</b> biên bản cũ còn ở trạng thái chờ duyệt (chưa tính vào tổng hợp) — mở mục "Chờ duyệt (bản cũ)" để chốt.`);
       $('tBox').insertAdjacentHTML('beforeend',nt.length?`<div class="msg" style="margin-top:10px">${nt.join('<br>')}</div>`:'');
       if($('tAll'))$('tAll').onclick=()=>{tTh='';$('tT').value='';draw();};};
     draw();$('tT').oninput=e=>{tTh=e.target.value;draw();};
@@ -1898,7 +1899,7 @@ function bbViewer(all,rec,photos,files,mode){
   const paint=()=>{$('bvPv').innerHTML=bbSheets(all,R,photos,files);bbFit($('bvPv'));fitPreview($('bvBox'));
     if(mode==='preview'&&bbOverflow($('bvPv')))$('bvAct').insertAdjacentHTML('beforeend','<div class="msg err">Nội dung dài quá 1 trang — rút gọn mô tả hoặc ghi chú.</div>');};
   let a='';
-  if(mode==='preview')a='<p class="hint">Bản xem trước. Số biên bản và giờ kết thúc được cấp khi gửi duyệt; chữ ký CHP có sau khi duyệt.</p>';
+  if(mode==='preview')a='<p class="hint">Bản xem trước. Số biên bản và giờ kết thúc được cấp khi bấm Hoàn tất.</p>';
   if(mode==='approve'){const sig=ME.profile&&ME.profile.signature;
     a=`<div class="panel" style="margin:0;padding:12px"><h3 class="g">Kiểm tra số tiền (sửa được trong khung của lần vi phạm)</h3>
       ${(R.rows||[]).map((x,i)=>{const v=BB_VM[x.code],[lo,hi]=bbTier(v,x.lan).map(z=>z*1e6);return `<div class="grid" style="align-items:end"><div><b>${x.code}</b> ${esc(v.n)}<br><span class="hint">Lần ${x.lan} · ${BB_MUC[x.muc]} · khung ${bbVnd(lo)} – ${bbVnd(hi)} đ</span></div><label class="f" for="ap${i}">Số tiền duyệt<input id="ap${i}" data-ap="${i}" inputmode="numeric" style="font-weight:700" value="${bbVnd(x.tien)}"></label></div>`;}).join('')}
@@ -1908,7 +1909,7 @@ function bbViewer(all,rec,photos,files,mode){
      <div class="row"><button type="button" class="btn red" id="apOk"${sig?'':' disabled'}>Ký duyệt &amp; xuất PDF</button><button type="button" class="btn" id="apNo" style="color:var(--bad);border-color:var(--bad)">Trả lại người lập</button></div>
      <div id="apNoBox" class="grid" hidden><label class="f" for="apWhy">Lý do trả lại *<input id="apWhy"></label><button type="button" class="btn" id="apNoGo" style="align-self:end;color:var(--bad);border-color:var(--bad)">Xác nhận trả lại</button></div>
      <div id="apMsg" class="msg" hidden></div>`;}
-  if(mode==='view'&&R.status==='da_duyet')a=`<div class="row"><button type="button" class="btn red" id="bvPdf">PDF / gửi Zalo</button><span class="hint">Duyệt lúc ${esc(fmtDT(R.duyet&&R.duyet.at))}</span></div>`;
+  if(mode==='view'&&R.status==='da_duyet')a=`<div class="row"><button type="button" class="btn red" id="bvPdf">PDF / gửi Zalo</button><span class="hint">Hoàn tất lúc ${esc(fmtDT(R.duyet&&R.duyet.at))}</span></div>`;
   $('bvAct').innerHTML=a;
   const msg=(t,k)=>{const m=$('apMsg');if(!m)return;m.hidden=!t;m.className='msg '+(k||'');m.textContent=t||'';};
   const recalc=()=>{R.tongPhat=(R.rows||[]).reduce((s,x)=>s+x.tien,0);R.tongCong=R.tongPhat+bbDbOf(R);};
