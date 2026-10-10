@@ -1487,7 +1487,7 @@ function bbHead(rec,title){
 }
 function bbSheets(all,rec,photos,files){
   files=files||{};const [h,m]=(rec.gioBD||'').split(':'),[kh,km]=(rec.gioKT||'').split(':'),doi=rec.doi||'',lap=bbLapOf(rec);
-  const pers=[[BB_CHP,'CHP NTC']];if(bbNorm(lap.name)!==bbNorm(BB_CHP))pers.push([lap.name,lap.cv]);pers.push([rec.ntpTen,(rec.ntpCv?rec.ntpCv+' ':'')+doi]);
+  const pers=[[lap.name,lap.cv],[rec.ntpTen,(rec.ntpCv?rec.ntpCv+' ':'')+doi]]; // thành phần: người lập + đại diện đội (CHP chỉ ký duyệt, không ghi vào thành phần)
   const tt=bbTotals(all,rec),apx=tt.dbI.length>BB_DB_INLINE,nPages=1+(apx?1:0)+Math.ceil(photos.length/6),ok=rec.status==='da_duyet'&&rec.duyet;
   const sig=(img,refuse)=>refuse?`<div class="bb-im"><div class="bb-rf">Từ chối ký<br>(có người chứng kiến)</div></div>`:`<div class="bb-im">${img?`<img src="${img}" alt="">`:''}</div>`;
   const cells=[
@@ -1662,7 +1662,7 @@ function viewBbp(tab){
       $('bDoi').innerHTML='<option value="">— Chọn đội —</option>'+k.map(d=>`<option${d===v?' selected':''}>${esc(d)}</option>`).join('')+`<option value="__k"${khac?' selected':''}>Khác (nhập tên)</option>`;
       $('bDoiKW').hidden=!khac;if(document.activeElement!==$('bDoiK'))$('bDoiK').value=khac?v:'';};
     const pers=()=>{const lap=bbLapOf(cur);$('bLapName').textContent=lap.name;
-      $('bPers').innerHTML=`<div class="bb-person"><b>1. Ông ${esc(BB_CHP)}</b><span>CHP NTC · người duyệt</span></div>${bbNorm(lap.name)!==bbNorm(BB_CHP)?`<div class="bb-person"><b>2. ${esc(lap.name)}</b><span>${esc(lap.cv)} · người lập</span></div>`:''}`;};
+      $('bPers').innerHTML=`<div class="bb-person"><b>1. ${esc(lap.name)}</b><span>${esc(lap.cv)} · người lập</span></div>`;};
     const lapSig=()=>{const s=ME.profile&&ME.profile.signature;
       $('bLapSig').innerHTML=s?`<div class="sigprev"><img src="${s}" alt="Chữ ký người lập"></div><p class="hint">Dùng chữ ký bạn đã khai báo ở mục Chữ ký, tự ký khi bấm gửi duyệt.</p>`:`<div class="warnbox"><b style="color:var(--bad)">Bạn chưa khai báo chữ ký.</b> <a href="#/ho-so">Khai báo chữ ký</a> trước khi gửi biên bản.</div>`;};
     const ntpTitle=()=>{$('bNtpT').textContent='Đại diện '+(cur.doi||'nhà thầu')+(cur.ntpTen?' · '+cur.ntpTen:'');};
