@@ -258,6 +258,7 @@ pre.bb-gen{margin:0;white-space:pre-wrap;font:14px/1.55 "Times New Roman",Times,
 .bb-kind{display:flex;gap:0;margin:10px 0 6px;border:1px solid var(--line);border-radius:12px;overflow:hidden;width:max-content;max-width:100%;background:#fff}
 .bb-kind a{padding:10px 18px;font-weight:700;font-size:14px;color:var(--navy);text-decoration:none;white-space:nowrap}
 .bb-kind a+a{border-left:1px solid var(--line)}.bb-kind a.on{background:var(--navy);color:#fff}
+.upd{position:fixed;left:12px;right:12px;bottom:12px;z-index:9998;background:#fff8e1;border:2px solid #f0a500;border-radius:12px;padding:12px 14px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;box-shadow:0 6px 24px rgba(0,0,0,.18);font-size:14px}
 .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
 .sheet.bbm{padding:40px 46px 30px;font:14px/1.35 "Times New Roman",Times,serif;display:flex;flex-direction:column;color:#111}
 .bbm .bm-body{flex:1;min-height:0;overflow:hidden;position:relative;display:flex;flex-direction:column}
@@ -310,6 +311,7 @@ pre.bb-gen{margin:0;white-space:pre-wrap;font:14px/1.55 "Times New Roman",Times,
 <script type="module">
 /* ===================== Cấu hình (SỬA CÁC DÒNG NÀY KHI TẠO DỰ ÁN MỚI) ===================== */
 const PROJECT_CODE='HH12';
+const APP_VER='2026-10-17b'; // đổi mỗi lần cập nhật web: máy đang mở bản cũ sẽ được nhắc tải lại
 const PROJECT_LABEL='DỰ ÁN KHÁCH SẠN, VĂN PHÒNG, BẢO TÀNG HH12 CỔ LOA';
 const NCC_CAT_KEY='Kết cấu';
 const ADMIN='hieukt1992@gmail.com';
@@ -2227,7 +2229,7 @@ function bbhViewer(rec,photos,mode){
 /* ===================== Biên bản họp (mẫu công ty BM-HC-002) ===================== */
 /* Không ký online, không duyệt: thành phần tham dự ký sống ở cột "Tham gia/Ký tên" trên bản in. Lưu chung bảng bbp: loai 'hop', mau 'bm'. */
 const isBbm=r=>r&&r.loai==='hop'&&r.mau==='bm';
-const bbmBlank=()=>({id:bbUid(),loai:'hop',mau:'bm',status:'nhap',so:'',ngay:today(),chuDe:'',doi:'',lapTen:'',lapCv:bbhLapCv0(),tp:[],ghiTho:'',nd:[],ghiChu:'',createdAt:Date.now()});
+const bbmBlank=()=>({id:bbUid(),loai:'hop',mau:'bm',status:'nhap',so:'',ngay:today(),chuDe:'',doi:'',lapTen:'',lapCv:bbhLapCv0(),tp:[],ghiTho:'',nd:[{nd:'',nguoi:'',han:''}],ghiChu:'',createdAt:Date.now()}); // mở form là thấy ngay 1 dòng: Nội dung | Người thực hiện | Thời gian thực hiện
 const bbmTp=rec=>{const l=bbhLap(rec);return [[l.name,l.cv],...(rec.tp||[]).filter(x=>x&&String(x.ten||'').trim()).map(x=>[x.ten,x.cv||''])];};
 const bbmRows=rec=>{const r=(rec.nd||[]).filter(x=>x&&(String(x.nd||'').trim()||String(x.nguoi||'').trim()||String(x.han||'').trim())).map(x=>({nd:String(x.nd||'').trim(),nguoi:String(x.nguoi||'').trim(),han:String(x.han||'').trim()}));
   if(String(rec.ghiChu||'').trim())r.push({nd:'Ghi chú: '+String(rec.ghiChu).trim(),nguoi:'',han:''});return r;};
@@ -2653,6 +2655,20 @@ window.addEventListener('hashchange',route);
   const intent=()=>{const sch=location.protocol.slice(0,-1);location.href='intent://'+location.host+location.pathname+location.search+location.hash+'#Intent;scheme='+sch+';package=com.android.chrome;S.browser_fallback_url='+encodeURIComponent(location.href)+';end';};
   if(isAndroid){$('openChrome').hidden=false;$('openChrome').onclick=intent;let done=false;try{done=sessionStorage.getItem('triedChrome');sessionStorage.setItem('triedChrome','1');}catch(e){}if(!done)setTimeout(intent,400);}
   $('copyLink').onclick=async()=>{try{await navigator.clipboard.writeText(location.href);}catch(e){const t=document.createElement('textarea');t.value=location.href;document.body.appendChild(t);t.select();try{document.execCommand('copy');}catch(_){}t.remove();}$('copyMsg').textContent='Đã sao chép. Mở Chrome hoặc Safari và dán vào thanh địa chỉ.';};
+})();
+
+/* ===================== Nhắc tải lại khi web có bản mới =====================
+   Trang mở lâu (tab cũ, điện thoại để sẵn) vẫn chạy code cũ -> lập biên bản sai mẫu/sai dãy số. Kiểm tra bản trên máy chủ, có bản mới thì nhắc,
+   và chặn nút "Hoàn tất" của biên bản (bản đang soạn đã tự lưu trên máy nên tải lại không mất). */
+(function verCheck(){
+  let old=false;
+  const show=()=>{if(document.getElementById('upd'))return;const d=document.createElement('div');d.className='upd';d.id='upd';d.setAttribute('role','alert');
+    d.innerHTML='<span><b>Web vừa có bản cập nhật.</b> Bấm "Tải lại" để dùng bản mới. Biên bản đang soạn được giữ lại; phiếu đang lập dở thì gửi xong rồi hãy tải lại.</span><button type="button" class="btn sm red" id="updGo">Tải lại</button>';
+    document.body.appendChild(d);$('updGo').onclick=()=>location.reload();};
+  const chk=async()=>{if(MOCK||old)return;try{const t=await (await fetch(location.pathname+'?ver='+Date.now(),{cache:'no-store'})).text();const m=t.match(/const APP_VER='([^']+)'/);if(m&&m[1]!==APP_VER){old=true;show();}}catch(e){}};
+  document.addEventListener('click',e=>{if(!old)return;const b=e.target.closest('#mSend,#hSend,#bSend');if(!b)return;e.preventDefault();e.stopImmediatePropagation();
+    if(confirm('Web vừa có bản cập nhật. Cần tải lại trước khi hoàn tất biên bản (nội dung đang soạn được giữ lại).\nBấm OK để tải lại ngay.'))setTimeout(()=>location.reload(),600);},true);
+  setTimeout(chk,8000);setInterval(chk,5*60e3);document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')chk();});
 })();
 
 /* ===================== Khởi động ===================== */
