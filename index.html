@@ -272,8 +272,11 @@ pre.bb-gen{margin:0;white-space:pre-wrap;font:14px/1.55 "Times New Roman",Times,
 .bbm .bm-nd{margin-top:6px}.bbm .bm-nd td{border:1px solid #222;padding:4px 6px;height:28px;font-size:13.5px;vertical-align:top;overflow-wrap:anywhere}
 .bbm .bm-nd td.c{text-align:center}.bbm .bm-nd td.nd{white-space:pre-wrap}
 .bbm .bm-ft{display:flex;justify-content:space-between;font-size:11px;font-style:italic;color:#333;padding-top:8px}
-.bm-er{display:grid;grid-template-columns:26px minmax(0,1fr) 170px 120px 40px;gap:8px;align-items:start}
+.bm-er{display:grid;grid-template-columns:26px minmax(0,1fr) 200px 165px 40px;gap:8px;align-items:start}
 .bm-er .no{padding-top:10px;font-weight:700;color:var(--muted);text-align:right}.bm-er .f{margin:0}.bm-er textarea{min-height:44px}
+.bm-eh{font-size:12.5px;color:var(--muted);font-weight:700;align-items:end}.bm-l{display:none;font-size:12px;color:var(--muted);font-weight:600}
+.bm-k{display:flex;gap:6px}.bm-k input{flex:1;min-width:0}
+@media(max-width:720px){.bm-eh{display:none}.bm-l{display:block}}
 @media(max-width:720px){.bm-er{grid-template-columns:26px 1fr 1fr 40px}.bm-er>label:nth-of-type(1){grid-column:2/5}.bm-er>label:nth-of-type(2){grid-column:2}.bm-er>label:nth-of-type(3){grid-column:3}.bm-er>button{grid-column:4}}
 @media(max-width:480px){.bb-kind{width:100%}.bb-kind a{flex:1;text-align:center;padding:10px 8px;font-size:13px}}
 @media(max-width:640px){.gtab th:nth-child(3),.gtab td:nth-child(3){display:none}.gia-in{width:110px}}
@@ -2229,7 +2232,12 @@ const bbmHead=(rec,first)=>`<table class="bm-hd"><tr><td class="lg" rowspan="4">
   <tr><td>Ngày: ${esc(fmtD(rec.ngay))}</td></tr><tr><td>Số: ${esc(rec.so||'(cấp khi hoàn tất)')}</td></tr><tr><td class="tt">BIÊN BẢN HỌP${first?'':' (TIẾP THEO)'}</td></tr>
   ${first?`<tr><td colspan="2" class="vv"><span>V/v:</span> ${esc(rec.chuDe||'')}</td></tr>`:''}</table>`;
 const bbmNdHead='<thead><tr><th style="width:44px">Số</th><th>Nội dung</th><th style="width:118px">Người thực hiện</th><th style="width:96px">Thời gian thực hiện</th></tr></thead>';
-const bbmTr=(no,x)=>{const tr=document.createElement('tr');tr.innerHTML=`<td class="c">${no}</td><td class="nd">${esc(x.nd||'')}</td><td class="c">${esc(x.nguoi||'')}</td><td class="c">${esc(x.han||'')}</td>`;return tr;};
+/* thời gian thực hiện: lưu ngày dạng yyyy-mm-dd (chọn lịch), in ra dd/mm/yyyy; chữ khác (VD "Thường xuyên") giữ nguyên */
+const bbmIso=s=>{s=String(s||'').trim();if(!s||/^\d{4}-\d{2}-\d{2}$/.test(s))return s;const m=s.match(/^(\d{1,2})[\/.-](\d{1,2})(?:[\/.-](\d{2,4}))?$/);if(!m)return s;
+  let y=m[3]?+m[3]:new Date().getFullYear();if(y<100)y+=2000;const d=+m[1],mo=+m[2];if(mo<1||mo>12||d<1||d>31)return s;return `${y}-${String(mo).padStart(2,'0')}-${String(d).padStart(2,'0')}`;};
+const bbmHanFmt=s=>/^\d{4}-\d{2}-\d{2}$/.test(String(s||''))?fmtD(s):String(s||'');
+const BBM_ALL='Các bên tham dự';
+const bbmTr=(no,x)=>{const tr=document.createElement('tr');tr.innerHTML=`<td class="c">${no}</td><td class="nd">${esc(x.nd||'')}</td><td class="c">${esc(x.nguoi||'')}</td><td class="c">${esc(bbmHanFmt(x.han))}</td>`;return tr;};
 /* dựng các trang A4 vào host (host phải đang hiển thị/đo được): trang 1 = đầu biên bản + thành phần + nội dung; nội dung dài tự sang trang sau */
 function bbmBuild(host,rec,photos){
   photos=photos||[];host.innerHTML='';
@@ -2341,7 +2349,13 @@ function viewBbm(tab){
       $('mDoi').innerHTML='<option value="">— Không chọn —</option>'+k.map(d=>`<option${d===v?' selected':''}>${esc(d)}</option>`).join('')+`<option value="__k"${khac?' selected':''}>Khác (nhập tên)</option>`;
       $('mDoiKW').hidden=!khac;if(document.activeElement!==$('mDoiK'))$('mDoiK').value=khac?v:'';};
     const tpUI=()=>{cur.tp=cur.tp||[];$('mTp').innerHTML=cur.tp.map((x,i)=>`<div class="grid" data-ti="${i}" style="align-items:end"><label class="f" for="mt${i}">Người tham dự ${i+2}<input id="mt${i}" data-t="ten" value="${esc(x.ten||'')}" placeholder="Họ tên"></label><label class="f" for="mc${i}">Chức vụ / đơn vị<input id="mc${i}" data-t="cv" value="${esc(x.cv||'')}" placeholder="VD: Đội trưởng đội Hải Đăng"></label><button type="button" class="btn sm" data-deltp="${i}" style="justify-self:start">Bỏ</button></div>`).join('');$('mAddTp').disabled=cur.tp.length>=19;};
-    const ndUI=()=>{cur.nd=cur.nd||[];$('mNd').innerHTML=cur.nd.length?cur.nd.map((x,i)=>`<div class="bm-er" data-ri="${i}"><span class="no">${i+1}</span><label class="f" for="mn${i}"><span class="sr">Nội dung ${i+1}</span><textarea id="mn${i}" data-n="nd" rows="2" placeholder="Nội dung">${esc(x.nd||'')}</textarea></label><label class="f" for="mg${i}"><span class="sr">Người thực hiện</span><input id="mg${i}" data-n="nguoi" value="${esc(x.nguoi||'')}" placeholder="Người thực hiện"></label><label class="f" for="mh${i}"><span class="sr">Thời gian thực hiện</span><input id="mh${i}" data-n="han" value="${esc(x.han||'')}" placeholder="Thời gian"></label><button type="button" class="btn sm" data-delnd="${i}" aria-label="Xoá dòng ${i+1}">✕</button></div>`).join(''):'<p class="hint" style="margin:0">Chưa có dòng nào. Bấm "Sắp xếp nội dung" từ ghi chép thô, hoặc "+ Thêm dòng nội dung" để gõ trực tiếp.</p>';};
+    const nguoiOpts=()=>{const o=[],add=v=>{v=String(v||'').trim();if(v&&!o.includes(v))o.push(v);};bbmTp(cur).forEach(p=>add(p[0]));if(cur.doi)add(cur.doi);return o;};
+    const ndUI=()=>{cur.nd=cur.nd||[];const opts=nguoiOpts();
+      const nguoiHtml=(x,i)=>{const v=String(x.nguoi||'');const custom=x._k||(v&&!opts.includes(v)&&v!==BBM_ALL);
+        return custom?`<div class="bm-k"><input id="mg${i}" data-n="nguoi" value="${esc(v)}" placeholder="Gõ tên người thực hiện"><button type="button" class="btn sm" data-pick="${i}" title="Chọn từ thành phần tham dự" aria-label="Chọn từ thành phần tham dự">▾</button></div>`
+          :`<select id="mg${i}" data-n="nguoi"><option value="">— Chọn người —</option>${opts.map(o=>`<option${o===v?' selected':''}>${esc(o)}</option>`).join('')}<option${v===BBM_ALL?' selected':''}>${BBM_ALL}</option><option value="__k">Khác (gõ tên)…</option></select>`;};
+      const hanHtml=(x,i)=>{const h=String(x.han||''),iso=bbmIso(h);return (!h||/^\d{4}-\d{2}-\d{2}$/.test(iso))?`<input id="mh${i}" type="date" data-n="han" value="${esc(iso)}">`:`<input id="mh${i}" data-n="han" value="${esc(h)}" placeholder="Thời gian">`;};
+      $('mNd').innerHTML=cur.nd.length?`<div class="bm-er bm-eh" aria-hidden="true"><span></span><span>Nội dung</span><span>Người thực hiện</span><span>Thời gian thực hiện</span><span></span></div>`+cur.nd.map((x,i)=>`<div class="bm-er" data-ri="${i}"><span class="no">${i+1}</span><label class="f" for="mn${i}"><span class="bm-l">Nội dung ${i+1}</span><textarea id="mn${i}" data-n="nd" rows="2" placeholder="Nội dung">${esc(x.nd||'')}</textarea></label><label class="f" for="mg${i}"><span class="bm-l">Người thực hiện</span>${nguoiHtml(x,i)}</label><label class="f" for="mh${i}"><span class="bm-l">Thời gian thực hiện</span>${hanHtml(x,i)}</label><button type="button" class="btn sm" data-delnd="${i}" aria-label="Xoá dòng ${i+1}">✕</button></div>`).join(''):'<p class="hint" style="margin:0">Chưa có dòng nào. Bấm "Sắp xếp nội dung" từ ghi chép thô, hoặc "+ Thêm dòng nội dung" để gõ trực tiếp.</p>';};
     const photosUI=()=>{$('mThumbs').innerHTML=photos.map((p,i)=>`<figure><img src="${p.data}" alt="Ảnh ${i+1}"><figcaption><input aria-label="Chú thích ảnh ${i+1}" data-cap="${i}" placeholder="Chú thích ảnh ${i+1}" value="${esc(p.cap||'')}"><button type="button" class="btn sm" data-delp="${i}">Xoá ảnh</button></figcaption></figure>`).join('');
       $('mPhInfo').textContent=photos.length?`${photos.length}/12 ảnh`:'Chưa có ảnh';};
     const load=()=>{
@@ -2361,22 +2375,28 @@ function viewBbm(tab){
     $('bbNew').onclick=()=>{if(cur&&(cur.chuDe||cur.ghiTho||(cur.nd||[]).length)&&!confirm('Bỏ biên bản họp đang soạn (chưa lưu) để lập mới?'))return;startNew();};
     const sec=$('bbLap');
     sec.addEventListener('input',e=>{
-      const k=e.target.dataset.k;if(k){cur[k]=e.target.value;e.target.classList.remove('invalid');saveLocal();if(k==='lapTen'&&$('mLapName'))$('mLapName').textContent=e.target.value;return;}
-      const t=e.target.dataset.t;if(t){const i=+e.target.closest('[data-ti]').dataset.ti;cur.tp[i][t]=e.target.value;saveLocal();return;}
-      const n=e.target.dataset.n;if(n){const i=+e.target.closest('[data-ri]').dataset.ri;cur.nd[i][n]=e.target.value;e.target.classList.remove('invalid');saveLocal();return;}
+      const ren=(o,v)=>{o=String(o||'').trim();if(o&&String(v||'').trim())(cur.nd||[]).forEach(x=>{if(String(x.nguoi||'').trim()===o)x.nguoi=v;});}; // đổi tên người tham dự thì đổi luôn ở cột Người thực hiện
+      const k=e.target.dataset.k;if(k){if(k==='lapTen')ren(cur.lapTen,e.target.value);cur[k]=e.target.value;e.target.classList.remove('invalid');saveLocal();if(k==='lapTen'&&$('mLapName'))$('mLapName').textContent=e.target.value;return;}
+      const t=e.target.dataset.t;if(t){const i=+e.target.closest('[data-ti]').dataset.ti;if(t==='ten')ren(cur.tp[i].ten,e.target.value);cur.tp[i][t]=e.target.value;saveLocal();return;}
+      const n=e.target.dataset.n;if(n&&e.target.tagName!=='SELECT'){const i=+e.target.closest('[data-ri]').dataset.ri;cur.nd[i][n]=e.target.value;e.target.classList.remove('invalid');saveLocal();return;}
       const cp=e.target.dataset.cap;if(cp!=null){photos[+cp].cap=e.target.value;dirtyPhotos=true;}});
     sec.addEventListener('change',e=>{
       if(e.target.id==='mDoi'){if(e.target.value==='__k'){cur._khac=true;$('mDoiKW').hidden=false;cur.doi=$('mDoiK').value.trim();$('mDoiK').focus();}else{cur._khac=false;$('mDoiKW').hidden=true;cur.doi=e.target.value;}saveLocal();}
-      if(e.target.id==='mDoiK'){cur.doi=e.target.value.trim();saveLocal();}});
+      if(e.target.id==='mDoiK'){cur.doi=e.target.value.trim();saveLocal();}
+      if(e.target.tagName==='SELECT'&&e.target.dataset.n==='nguoi'){const i=+e.target.closest('[data-ri]').dataset.ri;
+        if(e.target.value==='__k'){cur.nd[i].nguoi='';cur.nd[i]._k=true;ndUI();const t=$('mg'+i);if(t)t.focus();}else{cur.nd[i].nguoi=e.target.value;cur.nd[i]._k=false;}saveLocal();return;}
+      if(e.target.dataset.t||e.target.id==='mLapTen'||e.target.id==='mDoi'||e.target.id==='mDoiK')ndUI(); // cập nhật danh sách người thực hiện theo thành phần họp
+    });
     sec.addEventListener('click',e=>{
-      const d=e.target.closest('[data-deltp]');if(d){cur.tp.splice(+d.dataset.deltp,1);tpUI();saveLocal();return;}
+      const pk=e.target.closest('[data-pick]');if(pk){const i=+pk.dataset.pick;cur.nd[i]._k=false;if(!nguoiOpts().includes(cur.nd[i].nguoi)&&cur.nd[i].nguoi!==BBM_ALL)cur.nd[i].nguoi='';ndUI();saveLocal();return;}
+      const d=e.target.closest('[data-deltp]');if(d){cur.tp.splice(+d.dataset.deltp,1);tpUI();ndUI();saveLocal();return;}
       const r=e.target.closest('[data-delnd]');if(r){cur.nd.splice(+r.dataset.delnd,1);ndUI();saveLocal();return;}
       const p=e.target.closest('[data-delp]');if(p){photos.splice(+p.dataset.delp,1);dirtyPhotos=true;photosUI();}});
     $('mAddTp').onclick=()=>{cur.tp=cur.tp||[];if(cur.tp.length>=19)return;cur.tp.push({ten:'',cv:''});tpUI();saveLocal();const n=$('mt'+(cur.tp.length-1));if(n)n.focus();};
     $('mAddNd').onclick=()=>{cur.nd=cur.nd||[];cur.nd.push({nd:'',nguoi:'',han:''});ndUI();saveLocal();const n=$('mn'+(cur.nd.length-1));if(n)n.focus();};
     const putNd=(rows,src)=>{if(!rows.length){$('mAIMsg').textContent='Không tách được mục nào từ ghi chép.';return;}
       if((cur.nd||[]).some(x=>String(x.nd||'').trim())&&!confirm('Thay bảng nội dung hiện tại bằng bản vừa sắp xếp?'))return;
-      cur.nd=rows;ndUI();saveLocal();$('mAIMsg').textContent=src;};
+      cur.nd=rows.map(x=>({...x,han:bbmIso(x.han)}));ndUI();saveLocal();$('mAIMsg').textContent=src;};
     $('mAI').onclick=async()=>{if(!String(cur.ghiTho||'').trim()){$('mTho').classList.add('invalid');$('mAIMsg').textContent='Gõ ghi chép thô trước.';$('mTho').focus();return;}
       const b=$('mAI');b.disabled=true;$('mAIMsg').textContent='Đang sắp xếp… (khoảng 10–30 giây, đừng tắt trang)';
       try{const o=await bbhAI(cur);const rows=bbmFromAI(o);if(!rows.length)throw new Error('AI không trả về nội dung');
