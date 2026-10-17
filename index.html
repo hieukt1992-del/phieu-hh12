@@ -1616,7 +1616,7 @@ function viewBbp(tab){
   if(!ME.member&&!ME.isAdmin)return needMember();
   tab=['lap','duyet','luu','tong','gia'].includes(tab)?tab:(canBbp()?'lap':'luu');
   let all=[],cur=null,photos=[],files={},ntpPad=null,dirtyPhotos=false,ldT=null,lanSig='',needPh=false;
-  const saveLocal=()=>{clearTimeout(ldT);ldT=setTimeout(()=>{try{if(cur)localStorage.setItem('bbp-cur',JSON.stringify({cur,sigNtp:files.sigNtp||''}));}catch(e){}},400);};
+  const saveLocal=()=>{clearTimeout(ldT);ldT=setTimeout(()=>{try{if(cur)localStorage.setItem('bbp-cur',JSON.stringify({cur,u:myMail(),sigNtp:files.sigNtp||''}));}catch(e){}},400);};
   const T=(k,l,n)=>`<button type="button" data-tab="${k}" class="btn sm ${tab===k?'blue':''}">${l}${n?` <span class="badge b-rejected" style="padding:1px 8px">${n}</span>`:''}</button>`;
   app.innerHTML=`<div class="eyebrow">Biên bản hiện trường · Vi phạm quy định quản lý, sử dụng VTTB</div>${bbKind('phat')}<h2 style="margin:4px 0 12px;font-size:26px;color:var(--navy)">Biên bản phạt NTP-ĐTC</h2>
    <nav class="row" id="bbTabs" aria-label="Mục biên bản"></nav><div id="bbBody"></div>`;
@@ -1738,7 +1738,7 @@ function viewBbp(tab){
       $('bbMine').querySelectorAll('[data-edit]').forEach(b=>b.onclick=async()=>{const r=all.find(x=>x.id===b.dataset.edit);if(!r)return;b.disabled=true;try{const [ph,fl]=await Promise.all([DB.getBbpPhotos(r.id),DB.getBbpFiles(r.id)]);cur=JSON.parse(JSON.stringify(r));photos=ph;files={sigNtp:fl.sigNtp||''};dirtyPhotos=false;load();saveLocal();window.scrollTo({top:$('bbTraLai').offsetTop-20,behavior:'smooth'});}catch(e){toast('Không mở được: '+(e.code||e.message));}b.disabled=false;});
       $('bbMine').querySelectorAll('[data-delr]').forEach(b=>b.onclick=async()=>{if(!confirm('Xoá biên bản nháp này (cả ảnh)?'))return;try{await DB.deleteBbp(b.dataset.delr);if(cur&&cur.id===b.dataset.delr)startNew();toast('Đã xoá.');}catch(e){toast('Không xoá được: '+(e.code||e.message));}});};
     const startNew=()=>{cur=bbBlank();photos=[];files={};dirtyPhotos=false;try{localStorage.removeItem('bbp-cur');}catch(e){}load();setMsg('');};
-    if(!cur){try{const d=JSON.parse(localStorage.getItem('bbp-cur')||'null');if(d&&d.cur&&d.cur.rows){cur=d.cur;files={sigNtp:d.sigNtp||''};needPh=true;}}catch(e){}}
+    if(!cur){try{const d=JSON.parse(localStorage.getItem('bbp-cur')||'null');if(d&&d.cur&&d.cur.rows&&draftMine(d)){cur=d.cur;files={sigNtp:d.sigNtp||''};needPh=true;}}catch(e){}}
     if(!cur)cur=bbBlank();
     load();mine();
     renderLap.gia=()=>{dbRows();sumGen();};
@@ -1957,7 +1957,10 @@ function bbViewer(all,rec,photos,files,mode){
 const BBH_ST={nhap:'Nháp',xong:'Hoàn tất',cho_duyet:'Hoàn tất',da_duyet:'Hoàn tất',tra_lai:'Nháp'};
 const bbhDone=r=>['xong','cho_duyet','da_duyet'].includes(r.status);
 const bbKind=k=>`<nav class="bb-kind" aria-label="Loại biên bản">${canBbp()?`<a href="#/bien-ban" class="${k==='phat'?'on':''}">Biên bản phạt NTP-ĐTC</a>`:''}<a href="#/bien-ban-ht" class="${k==='ht'?'on':''}">Biên bản hiện trường</a><a href="#/bien-ban-hop" class="${k==='hop'?'on':''}">Biên bản họp</a></nav>`;
-const bbhKhach=()=>!(ME.member||ME.isAdmin); // người đề nghị: đăng nhập Google nhưng chưa được cấp quyền
+const bbhKhach=()=>!(ME.member||ME.isAdmin);
+/* bản đang soạn lưu trên máy gắn với email người dùng: đổi tài khoản trên cùng máy thì không mở bản của người khác */
+const myMail=()=>String((U&&U.email)||'').toLowerCase();
+const draftMine=d=>!!(d&&d.cur&&(d.u?String(d.u).toLowerCase()===myMail():(!d.cur.lap||String(d.cur.lap.email||'').toLowerCase()===myMail()))); // người đề nghị: đăng nhập Google nhưng chưa được cấp quyền
 const bbhLapCv0=()=>ME.isAdmin?'CHP NTC':(!ME.member?'':(ME.roles&&ME.roles.includes('thu_kho')?'Thủ kho NTC':'Giám sát NTC'));
 const bbhBlank=()=>({id:bbUid(),loai:'hop',status:'nhap',so:'',ngay:today(),gioBD:bbNowT(),gioKT:'',hangMuc:'',viTri:'',doi:'',ntpTen:'',ntpCv:'',
   lapCv:bbhLapCv0(),them:[],chuDe:'',ghiTho:'',noiDung:'',ghiChu:'',createdAt:Date.now()});
@@ -2043,7 +2046,7 @@ function viewBbh(tab){
   let mineK=[]; // biên bản hiện trường người đề nghị đã lập (theo email)
   tab=['lap','luu'].includes(tab)?tab:'lap';
   let all=[],cur=null,photos=[],dirtyPhotos=false,ldT=null,needPh=false;
-  const saveLocal=()=>{clearTimeout(ldT);ldT=setTimeout(()=>{try{if(cur)localStorage.setItem('bbh-cur',JSON.stringify({cur}));}catch(e){}},400);};
+  const saveLocal=()=>{clearTimeout(ldT);ldT=setTimeout(()=>{try{if(cur)localStorage.setItem('bbh-cur',JSON.stringify({cur,u:myMail()}));}catch(e){}},400);};
   const T=(k,l,n)=>`<button type="button" data-tab="${k}" class="btn sm ${tab===k?'blue':''}">${l}${n!=null?` <span class="badge" style="padding:1px 8px">${n}</span>`:''}</button>`;
   app.innerHTML=`<div class="eyebrow">${KH?'Dự án HH12 Cổ Loa · Dành cho người đề nghị / đội thi công':'Biên bản hiện trường · Ghi nhận sự việc với đội thi công / nhà thầu'}</div>${bbKind('ht')}<h2 style="margin:4px 0 12px;font-size:26px;color:var(--navy)">Biên bản hiện trường</h2>
    <nav class="row" id="bbTabs" aria-label="Mục biên bản hiện trường"></nav><div id="bbBody"></div>`;
@@ -2111,7 +2114,7 @@ function viewBbh(tab){
       $('bbMine').querySelectorAll('[data-edit]').forEach(b=>b.onclick=()=>{const r=all.find(x=>x.id===b.dataset.edit);if(r)openEdit(r,b);});
       $('bbMine').querySelectorAll('[data-delr]').forEach(b=>b.onclick=async()=>{if(!confirm('Xoá biên bản hiện trường nháp này (cả ảnh)?'))return;try{await DB.deleteBbp(b.dataset.delr);if(cur&&cur.id===b.dataset.delr)startNew();toast('Đã xoá.');}catch(e){toast('Không xoá được: '+(e.code||e.message));}});};
     const startNew=()=>{cur=bbhBlank();if(KH){try{const k=JSON.parse(localStorage.getItem('bbh-nguoi')||'{}');cur.lapTen=k.ten||ME.name||U.name||'';cur.lapCv=k.cv||'';}catch(e){}}photos=[];dirtyPhotos=false;try{localStorage.removeItem('bbh-cur');}catch(e){}load();setMsg('');};
-    if(!cur){try{const d=JSON.parse(localStorage.getItem('bbh-cur')||'null');if(d&&d.cur&&d.cur.loai==='hop'&&d.cur.mau!=='bm'){cur=d.cur;needPh=true;}}catch(e){}}
+    if(!cur){try{const d=JSON.parse(localStorage.getItem('bbh-cur')||'null');if(d&&d.cur&&d.cur.loai==='hop'&&d.cur.mau!=='bm'&&draftMine(d)){cur=d.cur;needPh=true;}}catch(e){}}
     if(!cur){startNew();}else{load();}mine();
     renderLap.refresh=async()=>{mine();fillDoi();
       if(needPh&&!dirtyPhotos&&!photos.length&&all.some(x=>x.id===cur.id)){needPh=false;try{photos=await DB.getBbpPhotos(cur.id);photosUI();gen();}catch(e){}}};
@@ -2299,7 +2302,7 @@ function viewBbm(tab){
   const KH=bbhKhach();
   tab=['lap','luu'].includes(tab)?tab:'lap';
   let all=[],cur=null,photos=[],dirtyPhotos=false,ldT=null,needPh=false;
-  const saveLocal=()=>{clearTimeout(ldT);ldT=setTimeout(()=>{try{if(cur)localStorage.setItem('bbm-cur',JSON.stringify({cur}));}catch(e){}},400);};
+  const saveLocal=()=>{clearTimeout(ldT);ldT=setTimeout(()=>{try{if(cur)localStorage.setItem('bbm-cur',JSON.stringify({cur,u:myMail()}));}catch(e){}},400);};
   const T=(k,l,n)=>`<button type="button" data-tab="${k}" class="btn sm ${tab===k?'blue':''}">${l}${n!=null?` <span class="badge" style="padding:1px 8px">${n}</span>`:''}</button>`;
   app.innerHTML=`<div class="eyebrow">${KH?'Dự án HH12 Cổ Loa · Dành cho người đề nghị / đội thi công':'Biên bản hiện trường · Mẫu BM-HC-002'}</div>${bbKind('hop')}<h2 style="margin:4px 0 12px;font-size:26px;color:var(--navy)">Biên bản họp</h2>
    <nav class="row" id="bbTabs" aria-label="Mục biên bản họp"></nav><div id="bbBody"></div>`;
@@ -2368,7 +2371,7 @@ function viewBbm(tab){
       $('bbMine').querySelectorAll('[data-edit]').forEach(b=>b.onclick=()=>{const r=all.find(x=>x.id===b.dataset.edit);if(r)openEdit(r,b);});
       $('bbMine').querySelectorAll('[data-delr]').forEach(b=>b.onclick=async()=>{if(!confirm('Xoá biên bản họp nháp này (cả ảnh)?'))return;try{await DB.deleteBbp(b.dataset.delr);if(cur&&cur.id===b.dataset.delr)startNew();toast('Đã xoá.');}catch(e){toast('Không xoá được: '+(e.code||e.message));}});};
     const startNew=()=>{cur=bbmBlank();if(KH){try{const k=JSON.parse(localStorage.getItem('bbh-nguoi')||'{}');cur.lapTen=k.ten||ME.name||U.name||'';cur.lapCv=k.cv||'';}catch(e){}}photos=[];dirtyPhotos=false;try{localStorage.removeItem('bbm-cur');}catch(e){}load();setMsg('');};
-    if(!cur){try{const d=JSON.parse(localStorage.getItem('bbm-cur')||'null');if(d&&d.cur&&isBbm(d.cur)){cur=d.cur;needPh=true;}}catch(e){}}
+    if(!cur){try{const d=JSON.parse(localStorage.getItem('bbm-cur')||'null');if(d&&d.cur&&isBbm(d.cur)&&draftMine(d)){cur=d.cur;needPh=true;}}catch(e){}}
     if(!cur){startNew();}else{load();}mine();
     renderLap.refresh=async()=>{mine();fillDoi();
       if(needPh&&!dirtyPhotos&&!photos.length&&!KH&&all.some(x=>x.id===cur.id)){needPh=false;try{photos=await DB.getBbpPhotos(cur.id);photosUI();}catch(e){}}};
@@ -2415,7 +2418,11 @@ function viewBbm(tab){
       if(!String(cur.chuDe||'').trim())mark('mVv','V/v');
       if(KH&&!String(cur.lapTen||'').trim())mark('mLapTen','Họ tên người lập');if(!String(cur.lapCv||'').trim())mark('mLapCv','Chức vụ người lập');
       if(!(cur.nd||[]).some(x=>String(x.nd||'').trim())){miss.push('Ít nhất 1 dòng nội dung cuộc họp');const n=$('mn0')||$('mTho');if(n)n.classList.add('invalid');}
+      else (cur.nd||[]).forEach((x,i)=>{if(!String(x.nd||'').trim()&&(String(x.nguoi||'').trim()||String(x.han||'').trim()))mark('mn'+i,`Nội dung dòng ${i+1} (đã chọn người/thời gian nhưng chưa ghi nội dung)`);});
       return miss;};
+    /* cảnh báo (không chặn): thời gian thực hiện trước ngày họp */
+    const warnHan=()=>{const w=(cur.nd||[]).map((x,i)=>{const h=bbmIso(x.han);return /^\d{4}-\d{2}-\d{2}$/.test(h)&&cur.ngay&&h<cur.ngay?i+1:0;}).filter(Boolean);
+      return w.length?confirm(`Dòng ${w.join(', ')} có thời gian thực hiện trước ngày họp (${fmtD(cur.ngay)}).\nBấm OK nếu đúng như vậy, Huỷ để sửa lại.`):true;};
     const recOut=()=>{const c=JSON.parse(JSON.stringify(cur));delete c._khac;c.loai='hop';c.mau='bm';
       c.tp=(c.tp||[]).filter(x=>String(x.ten||'').trim()).map(x=>({ten:String(x.ten).trim(),cv:String(x.cv||'').trim()}));
       c.nd=(c.nd||[]).filter(x=>String(x.nd||'').trim()||String(x.nguoi||'').trim()||String(x.han||'').trim()).map(x=>({nd:String(x.nd||'').trim(),nguoi:String(x.nguoi||'').trim(),han:String(x.han||'').trim()}));
@@ -2427,6 +2434,7 @@ function viewBbm(tab){
     $('mPrev').onclick=()=>{bbmViewer(recOut(),photos,'preview');};
     $('mSend').onclick=async()=>{const miss=validate();
       if(miss.length){setMsg('Còn thiếu: '+miss.join(', ')+'.','err');const f=document.querySelector('#bbBody .invalid');if(f)f.scrollIntoView({block:'center'});return;}
+      if(!warnHan())return;
       $('mSend').disabled=true;setMsg('Đang lưu biên bản…');
       try{const r=recOut();
         if(KH){r.id=bbUid();r.createdAt=Date.now();r.so='';}
