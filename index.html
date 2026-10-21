@@ -311,7 +311,7 @@ pre.bb-gen{margin:0;white-space:pre-wrap;font:14px/1.55 "Times New Roman",Times,
 <script type="module">
 /* ===================== Cấu hình (SỬA CÁC DÒNG NÀY KHI TẠO DỰ ÁN MỚI) ===================== */
 const PROJECT_CODE='HH12';
-const APP_VER='2026-10-21a'; // đổi mỗi lần cập nhật web: máy đang mở bản cũ sẽ được nhắc tải lại
+const APP_VER='2026-10-21b'; // đổi mỗi lần cập nhật web: máy đang mở bản cũ sẽ được nhắc tải lại
 const PROJECT_LABEL='DỰ ÁN KHÁCH SẠN, VĂN PHÒNG, BẢO TÀNG HH12 CỔ LOA';
 const NCC_CAT_KEY='Kết cấu';
 const ADMIN='hieukt1992@gmail.com';
@@ -450,7 +450,10 @@ function sigPad(host){
 }
 
 /* ===================== Kho dữ liệu: Firebase hoặc giả lập ===================== */
-let SLIP_CACHE=null;
+let SLIP_CACHE=null,IDX_CACHE=null;
+/* đổi giá trị Firestore REST -> JS */
+const restVal=v=>{if(!v)return null;if('stringValue' in v)return v.stringValue;if('integerValue' in v)return +v.integerValue;if('doubleValue' in v)return v.doubleValue;if('booleanValue' in v)return v.booleanValue;
+  if('timestampValue' in v)return Date.parse(v.timestampValue);if('mapValue' in v){const o={};for(const [k,x] of Object.entries(v.mapValue.fields||{}))o[k]=restVal(x);return o;}if('arrayValue' in v)return (v.arrayValue.values||[]).map(restVal);return null;};
 async function initFirebase(){
   const B='https://www.gstatic.com/firebasejs/10.14.1/';
   const [A,Au,F]=await Promise.all([import(B+'firebase-app.js'),import(B+'firebase-auth.js'),import(B+'firebase-firestore.js')]);
@@ -473,7 +476,7 @@ async function initFirebase(){
     syncSeq:async(key,min)=>{const r=F.doc(fs,'counters',key);return F.runTransaction(fs,async t=>{const d=await t.get(r);const c=d.exists()?d.data().n:0;if(min>c)t.set(r,{n:min});return Math.max(c,min);});},
     nextSeq:async key=>{const r=F.doc(fs,'counters',key);return F.runTransaction(fs,async t=>{const d=await t.get(r);const n=(d.exists()?d.data().n:0)+1;t.set(r,{n});return n;});},
     decSeqIfLatest:async(key,n)=>{const r=F.doc(fs,'counters',key);return F.runTransaction(fs,async t=>{const d=await t.get(r);const c=d.exists()?d.data().n:0;if(c===n&&n>0){t.set(r,{n:n-1});return n-1;}return c;});},
-    createSlip:async o=>{SLIP_CACHE=null;return (await F.addDoc(F.collection(fs,'slips'),{...o,createdAt:F.serverTimestamp()})).id;},
+    createSlip:async o=>{SLIP_CACHE=null;IDX_CACHE=null;return (await F.addDoc(F.collection(fs,'slips'),{...o,createdAt:F.serverTimestamp()})).id;},
     getSlip:async id=>{const s=await F.getDoc(D('slips/'+id));return s.exists()?{id,...norm(s.data())}:null;},
     watchSlip:(id,cb,err)=>F.onSnapshot(D('slips/'+id),s=>cb(s.exists()?{id,...norm(s.data())}:null),err),
     /* Danh sách phiếu (Tất cả phiếu / Chờ ký / Thống kê): ~96% dung lượng phiếu là ảnh chữ ký, nên chỉ tải các trường cần cho danh sách
@@ -493,10 +496,29 @@ async function initFirebase(){
         const o=rv({mapValue:{fields:x.document.fields||{}}});o.head=o.head||{};o.items=o.items||[];o.steps=FORMS[o.type]?newSteps(o.type):[];return {id,...o,_lite:true};});
       SLIP_CACHE={t:Date.now(),list};return list.map(x=>({...x}));
       }catch(e){console.warn('Tải danh sách nhẹ lỗi, dùng cách tải đầy đủ',e);return (await F.getDocs(F.query(F.collection(fs,'slips'),F.orderBy('createdAt','desc'),F.limit(300)))).docs.map(d=>({id:d.id,...norm(d.data())}));}},
+    /* Chỉ mục phiếu siêu nhẹ cho trang Tất cả phiếu: chỉ mã, loại, trạng thái, ngày, đội/đơn vị (~15 KB) để lập danh sách nhà thầu.
+       Chọn nhà thầu mới tải phiếu của nhà thầu đó (slipsByIds, vẫn bỏ chữ ký). */
+    slipIndex:async()=>{
+      if(IDX_CACHE&&Date.now()-IDX_CACHE.t<60e3)return IDX_CACHE.list.map(x=>({...x,head:{...x.head}}));
+      const tk=await auth.currentUser.getIdToken();
+      const fl=['code','type','status','createdAt','currentStep','head.doi','head.don_vi','head.ngay','head.ngay_xuat','head.so','head.hang_muc'];
+      const r=await fetch(`https://firestore.googleapis.com/v1/projects/${FB_CONFIG.projectId}/databases/(default)/documents:runQuery`,{method:'POST',headers:{Authorization:'Bearer '+tk,'Content-Type':'application/json'},
+        body:JSON.stringify({structuredQuery:{select:{fields:fl.map(f=>({fieldPath:f}))},from:[{collectionId:'slips'}],orderBy:[{field:{fieldPath:'createdAt'},direction:'DESCENDING'}],limit:2000}})});
+      if(!r.ok)throw new Error('HTTP '+r.status+' khi tải danh sách phiếu');
+      const list=(await r.json()).filter(x=>x.document).map(x=>{const o=restVal({mapValue:{fields:x.document.fields||{}}});o.head=o.head||{};o.items=[];o.steps=FORMS[o.type]?newSteps(o.type):[];return {id:x.document.name.split('/').pop(),...o,_lite:true};});
+      IDX_CACHE={t:Date.now(),list};return list.map(x=>({...x,head:{...x.head}}));},
+    slipsByIds:async ids=>{
+      const tk=await auth.currentUser.getIdToken(),base=`projects/${FB_CONFIG.projectId}/databases/(default)/documents`,out=[];
+      const fl=['code','type','status','head','items','currentStep','createdAt','updatedAt','createdByName','rejectReason','rejectedBy'];
+      for(let i=0;i<ids.length;i+=100){const r=await fetch(`https://firestore.googleapis.com/v1/${base}:batchGet`,{method:'POST',headers:{Authorization:'Bearer '+tk,'Content-Type':'application/json'},
+          body:JSON.stringify({documents:ids.slice(i,i+100).map(id=>`${base}/slips/${id}`),mask:{fieldPaths:fl}})});
+        if(!r.ok)throw new Error('HTTP '+r.status+' khi tải phiếu');
+        (await r.json()).filter(x=>x.found).forEach(x=>{const o=restVal({mapValue:{fields:x.found.fields||{}}});o.head=o.head||{};o.items=o.items||[];o.steps=FORMS[o.type]?newSteps(o.type):[];out.push({id:x.found.name.split('/').pop(),...o,_lite:true});});}
+      return out;},
     /* đầy đủ (kèm chữ ký) — chỉ dùng khi xuất Excel cần tên người ký */
     listSlipsFull:async()=>(await F.getDocs(F.query(F.collection(fs,'slips'),F.orderBy('createdAt','desc'),F.limit(300)))).docs.map(d=>({id:d.id,...norm(d.data())})),
-    updateSlip:(id,o)=>{SLIP_CACHE=null;return F.updateDoc(D('slips/'+id),{...o,updatedAt:F.serverTimestamp()});},
-    deleteSlip:id=>{SLIP_CACHE=null;return F.deleteDoc(D('slips/'+id));},
+    updateSlip:(id,o)=>{SLIP_CACHE=null;IDX_CACHE=null;return F.updateDoc(D('slips/'+id),{...o,updatedAt:F.serverTimestamp()});},
+    deleteSlip:id=>{SLIP_CACHE=null;IDX_CACHE=null;return F.deleteDoc(D('slips/'+id));},
     createSteelReceipt:async o=>(await F.addDoc(F.collection(fs,'steel_receipts'),{...o,createdAt:F.serverTimestamp()})).id,
     watchSteelReceipts:(cb,err)=>F.onSnapshot(F.query(F.collection(fs,'steel_receipts'),F.orderBy('createdAt','desc'),F.limit(2000)),s=>cb(s.docs.map(d=>({id:d.id,...norm(d.data())}))),err),
     updateSteelReceipt:(id,o)=>F.updateDoc(D('steel_receipts/'+id),o),
@@ -563,6 +585,8 @@ function initMock(){
     watchSlip:(id,cb)=>{const w={id,cb};ws.push(w);setTimeout(()=>push(id),0);return()=>{ws.splice(ws.indexOf(w),1);};},
     listSlips:async()=>Object.entries(ld().slips).map(([id,s])=>({id,...s})).sort((a,b)=>b.createdAt-a.createdAt),
     listSlipsFull:async()=>Object.entries(ld().slips).map(([id,s])=>({id,...s})).sort((a,b)=>b.createdAt-a.createdAt),
+    slipIndex:async()=>Object.entries(ld().slips).map(([id,s])=>({id,...s,items:[]})).sort((a,b)=>b.createdAt-a.createdAt),
+    slipsByIds:async ids=>ids.map(id=>ld().slips[id]?{id,...ld().slips[id]}:null).filter(Boolean),
     updateSlip:async(id,o)=>{const d=ld();d.slips[id]={...d.slips[id],...o,updatedAt:Date.now()};sv(d);push(id);},
     deleteSlip:async id=>{const d=ld();delete d.slips[id];sv(d);push(id);},
     createSteelReceipt:async o=>{const d=ld();d.steel=d.steel||{};const id='t'+Math.random().toString(36).slice(2,10);d.steel[id]={...o,createdAt:Date.now()};sv(d);emitS();return id;},
@@ -897,7 +921,9 @@ async function autoMail(){
 }
 async function exportXlsx(list,opt){
   if(typeof ExcelJS==='undefined'){toast('Chưa tải được thư viện Excel, kiểm tra mạng.');return;}
-  if(list.some(s=>s._lite)){toast('Đang tải chi tiết phiếu để xuất Excel…');try{const m={};(await DB.listSlipsFull()).forEach(s=>{m[s.id]=s;});list=list.map(s=>m[s.id]||s);}catch(e){toast('Không tải được chi tiết: '+(e.code||e.message));return;}}
+  if(list.some(s=>s._lite)){toast('Đang tải chi tiết phiếu để xuất Excel…');try{const m={};
+    if(list.length<=60)(await Promise.all(list.map(s=>DB.getSlip(s.id)))).filter(Boolean).forEach(s=>{m[s.id]=s;});else (await DB.listSlipsFull()).forEach(s=>{m[s.id]=s;});
+    list=list.map(s=>m[s.id]||s);}catch(e){toast('Không tải được chi tiết: '+(e.code||e.message));return;}}
   const wb=new ExcelJS.Workbook();wb.creator='Phiếu điện tử HH12';
   const NAVY='FF0B2545',BD={style:'thin',color:{argb:'FFCFD8E6'}},BORD={top:BD,bottom:BD,left:BD,right:BD};
   const hdr=(ws,r)=>{const row=ws.getRow(r);row.font={bold:true,color:{argb:'FFFFFFFF'},name:'Times New Roman'};row.fill={type:'pattern',pattern:'solid',fgColor:{argb:NAVY}};row.alignment={vertical:'middle',horizontal:'center',wrapText:true};row.height=30;};
@@ -2510,26 +2536,48 @@ async function viewQueue(){
    <div style="display:flex;flex-direction:column;gap:10px;margin-top:14px">${mine.map(slipRow).join('')||'<p class="hint">Hiện không có phiếu nào đến lượt bạn.</p>'}</div>
    ${waiting.length?`<section class="sec"><h2 style="font-size:19px">Phiếu đang chờ cấp khác (${waiting.length})</h2><div style="display:flex;flex-direction:column;gap:10px;margin-top:10px">${waiting.slice(0,30).map(slipRow).join('')}</div></section>`:''}`;
 }
-async function viewAll(){
+/* Tất cả phiếu: bước 1 danh sách nhà thầu (chỉ mục siêu nhẹ) -> bước 2 bấm nhà thầu mới tải phiếu của nhà thầu đó */
+const BYG_CACHE={};
+async function viewAll(sel){
   if(!U)return needLogin('Đăng nhập Google để xem toàn bộ phiếu.');
   if(!ME.member)return needMember();
-  let all=await loadSlips();if(!all)return;
-  let fs='',fq='';
+  app.innerHTML='<div class="panel"><p class="hint">Đang tải danh sách nhà thầu…</p></div>';
+  let idx;try{idx=await DB.slipIndex();}catch(e){app.innerHTML=`<div class="panel"><h2>Không tải được danh sách</h2><p class="hint">${esc(e.code||e.message)}</p></div>`;return;}
   const dk=s=>String(s.head.ngay_xuat||s.head.ngay||'');
   const gname=s=>s.type==='N'?'NCC · '+(who(s)||'Chưa rõ'):(who(s)||'Chưa rõ');
-  const draw=()=>{
-    const l=all.filter(s=>(!fs||s.status===fs)&&(!fq||(s.code+' '+who(s)+' '+(s.head.hang_muc||'')+' '+(s.head.so||'')).toLowerCase().includes(fq.toLowerCase())));
-    const G={};l.forEach(s=>{(G[gname(s)]=G[gname(s)]||[]).push(s);});
-    const names=Object.keys(G).sort((a,b)=>(a.startsWith('NCC')-b.startsWith('NCC'))||a.localeCompare(b,'vi'));
+  const hay=s=>(s.code+' '+gname(s)+' '+(s.head.hang_muc||'')+' '+(s.head.so||'')).toLowerCase();
+  const stOpts=v=>`<option value="">Mọi trạng thái</option>${[['pending','Đang chờ ký'],['done','Đã hoàn tất'],['rejected','Bị từ chối']].map(([k,l])=>`<option value="${k}"${v===k?' selected':''}>${l}</option>`).join('')}`;
+  let fs='',fq='';try{fs=sessionStorage.getItem('tatca-fs')||'';fq=sessionStorage.getItem('tatca-fq')||'';}catch(_){}
+  if(sel&&sel.toLowerCase().includes(fq.trim().toLowerCase()))fq=''; // tìm theo mã phiếu/hạng mục thì mang sang trang nhà thầu, tìm theo tên thì bỏ
+  if(!sel){ /* ===== Bước 1: danh sách nhà thầu ===== */
+    app.innerHTML=`<div class="eyebrow">Toàn bộ phiếu · chọn nhà thầu để xem phiếu</div><h2 style="margin:4px 0 12px;font-size:26px;color:var(--navy)">Tất cả phiếu</h2>
+     <div class="row"><input id="fq" type="search" placeholder="Tìm tên nhà thầu, mã phiếu, hạng mục" style="max-width:320px" aria-label="Tìm nhà thầu hoặc phiếu" value="${esc(fq)}"><select id="fs" style="max-width:190px" aria-label="Lọc trạng thái">${stOpts(fs)}</select><span id="cnt" class="hint"></span><button class="btn line sm" id="bxAll" style="margin-left:auto">Xuất Excel tất cả nhà thầu</button></div>
+     <div id="glist" class="grid3" style="margin-top:12px"></div>`;
+    const draw=()=>{const q=fq.trim().toLowerCase();const G={};
+      idx.filter(s=>!fs||s.status===fs).forEach(s=>{const g=gname(s),o=G[g]=G[g]||{g,n:0,p:0,r:0,last:'',hit:0,nameHit:g.toLowerCase().includes(q)};o.n++;if(s.status==='pending')o.p++;if(s.status==='rejected')o.r++;if(dk(s)>o.last)o.last=dk(s);if(q&&hay(s).includes(q))o.hit++;});
+      const L=Object.values(G).filter(o=>!q||o.nameHit||o.hit).sort((a,b)=>(a.g.startsWith('NCC')-b.g.startsWith('NCC'))||a.g.localeCompare(b.g,'vi'));
+      $('glist').innerHTML=L.map(o=>`<a class="slipcard" href="#/tatca/${encodeURIComponent(o.g)}"><span><b>${esc(o.g)}</b><br><small class="hint">${o.n} phiếu${o.last?' · mới nhất '+esc(fmtD(o.last)):''}${q&&!o.nameHit&&o.hit?` · <b>khớp ${o.hit} phiếu</b>`:''}</small></span><span class="row" style="gap:6px">${o.p?`<span class="badge b-pending">${o.p} chờ ký</span>`:''}${o.r?`<span class="badge b-rejected">${o.r} từ chối</span>`:''}<span class="btn sm line">Xem</span></span></a>`).join('')||'<p class="hint">Không có nhà thầu / phiếu khớp.</p>';
+      $('cnt').textContent=`${L.length} nhà thầu · ${L.reduce((a,o)=>a+(q&&!o.nameHit?o.hit:o.n),0)} phiếu`;};
+    $('fq').oninput=e=>{fq=e.target.value;try{sessionStorage.setItem('tatca-fq',fq);}catch(_){}draw();};
+    $('fs').onchange=e=>{fs=e.target.value;try{sessionStorage.setItem('tatca-fs',fs);}catch(_){}draw();};
+    $('bxAll').onclick=()=>{if(!confirm('Xuất Excel tất cả nhà thầu phải tải toàn bộ phiếu kèm chữ ký (có thể mất 20–40 giây). Tiếp tục?'))return;exportXlsx(idx.filter(s=>!fs||s.status===fs));};
+    draw();return;}
+  /* ===== Bước 2: phiếu của 1 nhà thầu ===== */
+  const mine=idx.filter(s=>gname(s)===sel);
+  app.innerHTML=`<div class="eyebrow"><a href="#/tatca">← Tất cả nhà thầu</a></div><h2 style="margin:4px 0 12px;font-size:26px;color:var(--navy)">${esc(sel)}</h2><div class="panel"><p class="hint">Đang tải ${mine.length} phiếu…</p></div>`;
+  let all;const ck=sel+'|'+mine.map(s=>s.id+':'+s.status).join(',');
+  try{all=BYG_CACHE[sel]&&BYG_CACHE[sel].k===ck?BYG_CACHE[sel].list:await DB.slipsByIds(mine.map(s=>s.id));BYG_CACHE[sel]={k:ck,list:all};}
+  catch(e){app.innerHTML=`<div class="panel"><h2>Không tải được phiếu</h2><p class="hint">${esc(e.code||e.message)}</p></div>`;return;}
+  const draw=()=>{const q=fq.trim().toLowerCase();
+    const l=all.filter(s=>(!fs||s.status===fs)&&(!q||hay(s).includes(q))).sort((a,b)=>dk(a).localeCompare(dk(b))||String(a.createdAt).localeCompare(String(b.createdAt)));
     const cols=ME.isAdmin?7:6;
-    $('rows').innerHTML=names.map(g=>{const ss=G[g].sort((a,b)=>dk(a).localeCompare(dk(b))||String(a.createdAt).localeCompare(String(b.createdAt)));
-      return `<tr class="grp"><td colspan="${cols}"><b>${esc(g)}</b> <span class="hint">· ${ss.length} phiếu</span></td></tr>`+ss.map(s=>`<tr>${ME.isAdmin?`<td><button class="btn line sm" data-del="${s.id}" style="color:var(--bad);border-color:var(--bad);min-height:32px;padding:0 10px">Xoá</button></td>`:''}<td><a href="#/phieu/${s.id}">${esc(s.code)}</a></td><td>${esc(FORMS[s.type].name)}</td><td>${esc(fmtD(dk(s)))}</td><td>${s.items.length}</td><td>${badge(s)}</td><td class="hint">${esc(s.head.hang_muc||'')}</td></tr>`).join('');}).join('')||`<tr><td colspan="${cols}" class="hint">Không có phiếu.</td></tr>`;
-    $('cnt').textContent=l.length+' phiếu';$('bx').onclick=()=>exportXlsx(all);
-    document.querySelectorAll('[data-del]').forEach(b=>b.onclick=()=>{const s=all.find(x=>x.id===b.dataset.del);delSlip(s,()=>{all=all.filter(x=>x.id!==s.id);draw();});});};
-  app.innerHTML=`<div class="eyebrow">Toàn bộ phiếu · xếp theo nhà thầu, phiếu mới nhất ở cuối</div><h2 style="margin:4px 0 12px;font-size:26px;color:var(--navy)">Tất cả phiếu</h2>
-   <div class="row"><input id="fq" placeholder="Tìm mã phiếu, đội, hạng mục" style="max-width:280px" aria-label="Tìm phiếu"><select id="fs" style="max-width:190px" aria-label="Lọc trạng thái"><option value="">Mọi trạng thái</option><option value="pending">Đang chờ ký</option><option value="done">Đã hoàn tất</option><option value="rejected">Bị từ chối</option></select><span id="cnt" class="hint"></span><button class="btn blue sm" id="bx" style="margin-left:auto">Xuất Excel thống kê theo nhà thầu</button></div>
+    $('rows').innerHTML=l.map(s=>`<tr>${ME.isAdmin?`<td><button class="btn line sm" data-del="${s.id}" style="color:var(--bad);border-color:var(--bad);min-height:32px;padding:0 10px">Xoá</button></td>`:''}<td><a href="#/phieu/${s.id}">${esc(s.code)}</a></td><td>${esc(FORMS[s.type].name)}</td><td>${esc(fmtD(dk(s)))}</td><td>${s.items.length}</td><td>${badge(s)}</td><td class="hint">${esc(s.head.hang_muc||'')}</td></tr>`).join('')||`<tr><td colspan="${cols}" class="hint">Không có phiếu.</td></tr>`;
+    $('cnt').textContent=l.length+' phiếu';$('bx').onclick=()=>exportXlsx(l);
+    document.querySelectorAll('[data-del]').forEach(b=>b.onclick=()=>{const s=all.find(x=>x.id===b.dataset.del);delSlip(s,()=>{all=all.filter(x=>x.id!==s.id);idx=idx.filter(x=>x.id!==s.id);delete BYG_CACHE[sel];draw();});});};
+  app.innerHTML=`<div class="eyebrow"><a href="#/tatca">← Tất cả nhà thầu</a> · phiếu mới nhất ở cuối</div><h2 style="margin:4px 0 12px;font-size:26px;color:var(--navy)">${esc(sel)}</h2>
+   <div class="row"><input id="fq" type="search" placeholder="Tìm mã phiếu, hạng mục" style="max-width:280px" aria-label="Tìm phiếu" value="${esc(fq)}"><select id="fs" style="max-width:190px" aria-label="Lọc trạng thái">${stOpts(fs)}</select><span id="cnt" class="hint"></span><button class="btn blue sm" id="bx" style="margin-left:auto">Xuất Excel nhà thầu này</button></div>
    <div class="panel scroll" style="margin-top:12px"><table class="t"><thead><tr>${ME.isAdmin?'<th></th>':''}<th>Mã phiếu</th><th>Loại</th><th>Ngày</th><th>Dòng</th><th>Trạng thái</th><th>Hạng mục</th></tr></thead><tbody id="rows"></tbody></table></div>`;
-  $('fq').oninput=e=>{fq=e.target.value;draw();};$('fs').onchange=e=>{fs=e.target.value;draw();};draw();
+  $('fq').oninput=e=>{fq=e.target.value;try{sessionStorage.setItem('tatca-fq',fq);}catch(_){}draw();};$('fs').onchange=e=>{fs=e.target.value;try{sessionStorage.setItem('tatca-fs',fs);}catch(_){}draw();};draw();
 }
 
 /* ===================== Khai báo chữ ký ===================== */
@@ -2652,7 +2700,7 @@ function route(){
   if(p==='ncc')return viewCreate('ncc');
   if(p==='phieu'&&parts[1])return viewSlip(parts[1]);
   if(p==='duyet')return viewQueue();
-  if(p==='tatca')return viewAll();
+  if(p==='tatca')return viewAll(parts[1]?decodeURIComponent(parts[1]):'');
   if(p==='thong-ke')return viewStats();
   if(p==='thep-nhap')return viewSteelUpload();
   if(p==='thep-tonghop')return viewSteelSummary();
