@@ -311,7 +311,7 @@ pre.bb-gen{margin:0;white-space:pre-wrap;font:14px/1.55 "Times New Roman",Times,
 <script type="module">
 /* ===================== Cấu hình (SỬA CÁC DÒNG NÀY KHI TẠO DỰ ÁN MỚI) ===================== */
 const PROJECT_CODE='HH12';
-const APP_VER='2026-10-17b'; // đổi mỗi lần cập nhật web: máy đang mở bản cũ sẽ được nhắc tải lại
+const APP_VER='2026-10-21a'; // đổi mỗi lần cập nhật web: máy đang mở bản cũ sẽ được nhắc tải lại
 const PROJECT_LABEL='DỰ ÁN KHÁCH SẠN, VĂN PHÒNG, BẢO TÀNG HH12 CỔ LOA';
 const NCC_CAT_KEY='Kết cấu';
 const ADMIN='hieukt1992@gmail.com';
@@ -450,6 +450,7 @@ function sigPad(host){
 }
 
 /* ===================== Kho dữ liệu: Firebase hoặc giả lập ===================== */
+let SLIP_CACHE=null;
 async function initFirebase(){
   const B='https://www.gstatic.com/firebasejs/10.14.1/';
   const [A,Au,F]=await Promise.all([import(B+'firebase-app.js'),import(B+'firebase-auth.js'),import(B+'firebase-firestore.js')]);
@@ -472,12 +473,30 @@ async function initFirebase(){
     syncSeq:async(key,min)=>{const r=F.doc(fs,'counters',key);return F.runTransaction(fs,async t=>{const d=await t.get(r);const c=d.exists()?d.data().n:0;if(min>c)t.set(r,{n:min});return Math.max(c,min);});},
     nextSeq:async key=>{const r=F.doc(fs,'counters',key);return F.runTransaction(fs,async t=>{const d=await t.get(r);const n=(d.exists()?d.data().n:0)+1;t.set(r,{n});return n;});},
     decSeqIfLatest:async(key,n)=>{const r=F.doc(fs,'counters',key);return F.runTransaction(fs,async t=>{const d=await t.get(r);const c=d.exists()?d.data().n:0;if(c===n&&n>0){t.set(r,{n:n-1});return n-1;}return c;});},
-    createSlip:async o=>(await F.addDoc(F.collection(fs,'slips'),{...o,createdAt:F.serverTimestamp()})).id,
+    createSlip:async o=>{SLIP_CACHE=null;return (await F.addDoc(F.collection(fs,'slips'),{...o,createdAt:F.serverTimestamp()})).id;},
     getSlip:async id=>{const s=await F.getDoc(D('slips/'+id));return s.exists()?{id,...norm(s.data())}:null;},
     watchSlip:(id,cb,err)=>F.onSnapshot(D('slips/'+id),s=>cb(s.exists()?{id,...norm(s.data())}:null),err),
-    listSlips:async()=>(await F.getDocs(F.query(F.collection(fs,'slips'),F.orderBy('createdAt','desc'),F.limit(300)))).docs.map(d=>({id:d.id,...norm(d.data())})),
-    updateSlip:(id,o)=>F.updateDoc(D('slips/'+id),{...o,updatedAt:F.serverTimestamp()}),
-    deleteSlip:id=>F.deleteDoc(D('slips/'+id)),
+    /* Danh sách phiếu (Tất cả phiếu / Chờ ký / Thống kê): ~96% dung lượng phiếu là ảnh chữ ký, nên chỉ tải các trường cần cho danh sách
+       (bỏ chữ ký) qua REST runQuery có select (~270 KB thay vì ~5 MB). Bước ký lấy theo mẫu phiếu (role/nhãn từng bước) để biết đến lượt ai;
+       mở chi tiết phiếu thì vẫn tải đầy đủ. Kết quả giữ 60 giây để chuyển trang không tải lại. */
+    listSlips:async()=>{
+      if(SLIP_CACHE&&Date.now()-SLIP_CACHE.t<60e3)return SLIP_CACHE.list.map(x=>({...x}));
+      try{
+      const tk=await auth.currentUser.getIdToken();
+      const rv=v=>{if(!v)return null;if('stringValue' in v)return v.stringValue;if('integerValue' in v)return +v.integerValue;if('doubleValue' in v)return v.doubleValue;if('booleanValue' in v)return v.booleanValue;
+        if('timestampValue' in v)return Date.parse(v.timestampValue);if('mapValue' in v){const o={};for(const [k,x] of Object.entries(v.mapValue.fields||{}))o[k]=rv(x);return o;}if('arrayValue' in v)return (v.arrayValue.values||[]).map(rv);return null;};
+      const F0=['code','type','status','head','items','currentStep','createdAt','updatedAt','createdByName','rejectReason','rejectedBy'];
+      const res=await fetch(`https://firestore.googleapis.com/v1/projects/${FB_CONFIG.projectId}/databases/(default)/documents:runQuery`,{method:'POST',headers:{Authorization:'Bearer '+tk,'Content-Type':'application/json'},
+          body:JSON.stringify({structuredQuery:{select:{fields:F0.map(f=>({fieldPath:f}))},from:[{collectionId:'slips'}],orderBy:[{field:{fieldPath:'createdAt'},direction:'DESCENDING'}],limit:300}})});
+      if(!res.ok)throw new Error('HTTP '+res.status+' khi tải danh sách phiếu');
+      const list=(await res.json()).filter(x=>x.document).map(x=>{const id=x.document.name.split('/').pop();
+        const o=rv({mapValue:{fields:x.document.fields||{}}});o.head=o.head||{};o.items=o.items||[];o.steps=FORMS[o.type]?newSteps(o.type):[];return {id,...o,_lite:true};});
+      SLIP_CACHE={t:Date.now(),list};return list.map(x=>({...x}));
+      }catch(e){console.warn('Tải danh sách nhẹ lỗi, dùng cách tải đầy đủ',e);return (await F.getDocs(F.query(F.collection(fs,'slips'),F.orderBy('createdAt','desc'),F.limit(300)))).docs.map(d=>({id:d.id,...norm(d.data())}));}},
+    /* đầy đủ (kèm chữ ký) — chỉ dùng khi xuất Excel cần tên người ký */
+    listSlipsFull:async()=>(await F.getDocs(F.query(F.collection(fs,'slips'),F.orderBy('createdAt','desc'),F.limit(300)))).docs.map(d=>({id:d.id,...norm(d.data())})),
+    updateSlip:(id,o)=>{SLIP_CACHE=null;return F.updateDoc(D('slips/'+id),{...o,updatedAt:F.serverTimestamp()});},
+    deleteSlip:id=>{SLIP_CACHE=null;return F.deleteDoc(D('slips/'+id));},
     createSteelReceipt:async o=>(await F.addDoc(F.collection(fs,'steel_receipts'),{...o,createdAt:F.serverTimestamp()})).id,
     watchSteelReceipts:(cb,err)=>F.onSnapshot(F.query(F.collection(fs,'steel_receipts'),F.orderBy('createdAt','desc'),F.limit(2000)),s=>cb(s.docs.map(d=>({id:d.id,...norm(d.data())}))),err),
     updateSteelReceipt:(id,o)=>F.updateDoc(D('steel_receipts/'+id),o),
@@ -543,6 +562,7 @@ function initMock(){
     getSlip:async id=>{const s=ld().slips[id];return s?{id,...s}:null;},
     watchSlip:(id,cb)=>{const w={id,cb};ws.push(w);setTimeout(()=>push(id),0);return()=>{ws.splice(ws.indexOf(w),1);};},
     listSlips:async()=>Object.entries(ld().slips).map(([id,s])=>({id,...s})).sort((a,b)=>b.createdAt-a.createdAt),
+    listSlipsFull:async()=>Object.entries(ld().slips).map(([id,s])=>({id,...s})).sort((a,b)=>b.createdAt-a.createdAt),
     updateSlip:async(id,o)=>{const d=ld();d.slips[id]={...d.slips[id],...o,updatedAt:Date.now()};sv(d);push(id);},
     deleteSlip:async id=>{const d=ld();delete d.slips[id];sv(d);push(id);},
     createSteelReceipt:async o=>{const d=ld();d.steel=d.steel||{};const id='t'+Math.random().toString(36).slice(2,10);d.steel[id]={...o,createdAt:Date.now()};sv(d);emitS();return id;},
@@ -877,6 +897,7 @@ async function autoMail(){
 }
 async function exportXlsx(list,opt){
   if(typeof ExcelJS==='undefined'){toast('Chưa tải được thư viện Excel, kiểm tra mạng.');return;}
+  if(list.some(s=>s._lite)){toast('Đang tải chi tiết phiếu để xuất Excel…');try{const m={};(await DB.listSlipsFull()).forEach(s=>{m[s.id]=s;});list=list.map(s=>m[s.id]||s);}catch(e){toast('Không tải được chi tiết: '+(e.code||e.message));return;}}
   const wb=new ExcelJS.Workbook();wb.creator='Phiếu điện tử HH12';
   const NAVY='FF0B2545',BD={style:'thin',color:{argb:'FFCFD8E6'}},BORD={top:BD,bottom:BD,left:BD,right:BD};
   const hdr=(ws,r)=>{const row=ws.getRow(r);row.font={bold:true,color:{argb:'FFFFFFFF'},name:'Times New Roman'};row.fill={type:'pattern',pattern:'solid',fgColor:{argb:NAVY}};row.alignment={vertical:'middle',horizontal:'center',wrapText:true};row.height=30;};
