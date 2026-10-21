@@ -258,6 +258,11 @@ pre.bb-gen{margin:0;white-space:pre-wrap;font:14px/1.55 "Times New Roman",Times,
 .bb-kind{display:flex;gap:0;margin:10px 0 6px;border:1px solid var(--line);border-radius:12px;overflow:hidden;width:max-content;max-width:100%;background:#fff}
 .bb-kind a{padding:10px 18px;font-weight:700;font-size:14px;color:var(--navy);text-decoration:none;white-space:nowrap}
 .bb-kind a+a{border-left:1px solid var(--line)}.bb-kind a.on{background:var(--navy);color:#fff}
+.sg-box{position:relative;flex:1 1 320px;max-width:420px}.sg-box input{width:100%}
+.sg-list{position:absolute;top:calc(100% + 4px);left:0;right:0;z-index:60;background:#fff;border:1px solid var(--line);border-radius:10px;box-shadow:0 8px 24px rgba(7,27,54,.16);max-height:340px;overflow:auto;padding:4px}
+.sg-it{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:9px 10px;border-radius:8px;cursor:pointer;font-size:14px}
+.sg-it small{color:var(--muted);white-space:nowrap}.sg-it[aria-selected="true"],.sg-it:hover{background:var(--blue2)}.sg-h{font-size:11.5px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;padding:8px 10px 4px}
+.ntp-t tbody tr{cursor:pointer}.ntp-t tbody tr:hover{background:var(--blue2)}.ntp-t td.n{text-align:center;font-variant-numeric:tabular-nums}
 .upd{position:fixed;left:12px;right:12px;bottom:12px;z-index:9998;background:#fff8e1;border:2px solid #f0a500;border-radius:12px;padding:12px 14px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;box-shadow:0 6px 24px rgba(0,0,0,.18);font-size:14px}
 .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
 .sheet.bbm{padding:40px 46px 30px;font:14px/1.35 "Times New Roman",Times,serif;display:flex;flex-direction:column;color:#111}
@@ -311,7 +316,7 @@ pre.bb-gen{margin:0;white-space:pre-wrap;font:14px/1.55 "Times New Roman",Times,
 <script type="module">
 /* ===================== Cấu hình (SỬA CÁC DÒNG NÀY KHI TẠO DỰ ÁN MỚI) ===================== */
 const PROJECT_CODE='HH12';
-const APP_VER='2026-10-21b'; // đổi mỗi lần cập nhật web: máy đang mở bản cũ sẽ được nhắc tải lại
+const APP_VER='2026-10-21c'; // đổi mỗi lần cập nhật web: máy đang mở bản cũ sẽ được nhắc tải lại
 const PROJECT_LABEL='DỰ ÁN KHÁCH SẠN, VĂN PHÒNG, BẢO TÀNG HH12 CỔ LOA';
 const NCC_CAT_KEY='Kết cấu';
 const ADMIN='hieukt1992@gmail.com';
@@ -2538,6 +2543,8 @@ async function viewQueue(){
 }
 /* Tất cả phiếu: bước 1 danh sách nhà thầu (chỉ mục siêu nhẹ) -> bước 2 bấm nhà thầu mới tải phiếu của nhà thầu đó */
 const BYG_CACHE={};
+const vnKey=s=>String(s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/đ/g,'d').replace(/Đ/g,'D').toLowerCase().replace(/\s+/g,' ').trim();
+const vnRank=(name,q)=>{const n=vnKey(name);if(!q)return 0;if(n.startsWith(q))return 3;if((' '+n).includes(' '+q))return 2;return n.includes(q)?1:0;}; // 3 đầu tên, 2 đầu 1 từ, 1 chứa
 async function viewAll(sel){
   if(!U)return needLogin('Đăng nhập Google để xem toàn bộ phiếu.');
   if(!ME.member)return needMember();
@@ -2545,20 +2552,41 @@ async function viewAll(sel){
   let idx;try{idx=await DB.slipIndex();}catch(e){app.innerHTML=`<div class="panel"><h2>Không tải được danh sách</h2><p class="hint">${esc(e.code||e.message)}</p></div>`;return;}
   const dk=s=>String(s.head.ngay_xuat||s.head.ngay||'');
   const gname=s=>s.type==='N'?'NCC · '+(who(s)||'Chưa rõ'):(who(s)||'Chưa rõ');
-  const hay=s=>(s.code+' '+gname(s)+' '+(s.head.hang_muc||'')+' '+(s.head.so||'')).toLowerCase();
+  const hay=s=>vnKey(s.code+' '+gname(s)+' '+(s.head.hang_muc||'')+' '+(s.head.so||''));
   const stOpts=v=>`<option value="">Mọi trạng thái</option>${[['pending','Đang chờ ký'],['done','Đã hoàn tất'],['rejected','Bị từ chối']].map(([k,l])=>`<option value="${k}"${v===k?' selected':''}>${l}</option>`).join('')}`;
   let fs='',fq='';try{fs=sessionStorage.getItem('tatca-fs')||'';fq=sessionStorage.getItem('tatca-fq')||'';}catch(_){}
-  if(sel&&sel.toLowerCase().includes(fq.trim().toLowerCase()))fq=''; // tìm theo mã phiếu/hạng mục thì mang sang trang nhà thầu, tìm theo tên thì bỏ
-  if(!sel){ /* ===== Bước 1: danh sách nhà thầu ===== */
+  if(sel&&vnRank(sel,vnKey(fq))>0)fq=''; // tìm theo mã phiếu/hạng mục thì mang sang trang nhà thầu, tìm theo tên thì bỏ
+  if(!sel){ /* ===== Bước 1: danh sách nhà thầu + ô tìm có danh sách gợi ý ===== */
     app.innerHTML=`<div class="eyebrow">Toàn bộ phiếu · chọn nhà thầu để xem phiếu</div><h2 style="margin:4px 0 12px;font-size:26px;color:var(--navy)">Tất cả phiếu</h2>
-     <div class="row"><input id="fq" type="search" placeholder="Tìm tên nhà thầu, mã phiếu, hạng mục" style="max-width:320px" aria-label="Tìm nhà thầu hoặc phiếu" value="${esc(fq)}"><select id="fs" style="max-width:190px" aria-label="Lọc trạng thái">${stOpts(fs)}</select><span id="cnt" class="hint"></span><button class="btn line sm" id="bxAll" style="margin-left:auto">Xuất Excel tất cả nhà thầu</button></div>
-     <div id="glist" class="grid3" style="margin-top:12px"></div>`;
-    const draw=()=>{const q=fq.trim().toLowerCase();const G={};
-      idx.filter(s=>!fs||s.status===fs).forEach(s=>{const g=gname(s),o=G[g]=G[g]||{g,n:0,p:0,r:0,last:'',hit:0,nameHit:g.toLowerCase().includes(q)};o.n++;if(s.status==='pending')o.p++;if(s.status==='rejected')o.r++;if(dk(s)>o.last)o.last=dk(s);if(q&&hay(s).includes(q))o.hit++;});
-      const L=Object.values(G).filter(o=>!q||o.nameHit||o.hit).sort((a,b)=>(a.g.startsWith('NCC')-b.g.startsWith('NCC'))||a.g.localeCompare(b.g,'vi'));
-      $('glist').innerHTML=L.map(o=>`<a class="slipcard" href="#/tatca/${encodeURIComponent(o.g)}"><span><b>${esc(o.g)}</b><br><small class="hint">${o.n} phiếu${o.last?' · mới nhất '+esc(fmtD(o.last)):''}${q&&!o.nameHit&&o.hit?` · <b>khớp ${o.hit} phiếu</b>`:''}</small></span><span class="row" style="gap:6px">${o.p?`<span class="badge b-pending">${o.p} chờ ký</span>`:''}${o.r?`<span class="badge b-rejected">${o.r} từ chối</span>`:''}<span class="btn sm line">Xem</span></span></a>`).join('')||'<p class="hint">Không có nhà thầu / phiếu khớp.</p>';
+     <div class="row"><div class="sg-box"><input id="fq" type="search" placeholder="Gõ tên nhà thầu hoặc mã phiếu…" autocomplete="off" role="combobox" aria-expanded="false" aria-controls="sgl" aria-autocomplete="list" aria-label="Tìm nhà thầu hoặc phiếu" value="${esc(fq)}"><div id="sgl" class="sg-list" role="listbox" hidden></div></div>
+      <select id="fs" style="max-width:190px" aria-label="Lọc trạng thái">${stOpts(fs)}</select><span id="cnt" class="hint"></span><button class="btn line sm" id="bxAll" style="margin-left:auto">Xuất Excel tất cả nhà thầu</button></div>
+     <div class="panel scroll" style="margin-top:12px"><table class="t ntp-t"><thead><tr><th>Nhà thầu / đội</th><th>Số phiếu</th><th>Chờ ký</th><th>Từ chối</th><th>Phiếu mới nhất</th><th></th></tr></thead><tbody id="glist"></tbody></table></div>`;
+    const groups=()=>{const q=vnKey(fq),G={};
+      idx.filter(s=>!fs||s.status===fs).forEach(s=>{const g=gname(s),o=G[g]=G[g]||{g,n:0,p:0,r:0,last:'',hit:0,rank:vnRank(g,q),nameHit:!q||vnRank(g,q)>0};o.n++;if(s.status==='pending')o.p++;if(s.status==='rejected')o.r++;if(dk(s)>o.last)o.last=dk(s);if(q&&hay(s).includes(q))o.hit++;});
+      return Object.values(G).filter(o=>!q||o.nameHit||o.hit).sort((a,b)=>(a.g.startsWith('NCC')-b.g.startsWith('NCC'))||a.g.localeCompare(b.g,'vi'));};
+    const goG=g=>{location.hash='#/tatca/'+encodeURIComponent(g);};
+    const draw=()=>{const q=fq.trim(),L=groups();
+      $('glist').innerHTML=L.map(o=>`<tr data-g="${esc(o.g)}" tabindex="0"><td><b>${esc(o.g)}</b>${q&&!o.nameHit&&o.hit?` <small class="hint">· khớp ${o.hit} phiếu</small>`:''}</td><td class="n">${o.n}</td><td class="n">${o.p?`<span class="badge b-pending">${o.p}</span>`:''}</td><td class="n">${o.r?`<span class="badge b-rejected">${o.r}</span>`:''}</td><td>${esc(fmtD(o.last))}</td><td style="text-align:right"><span class="btn sm line">Xem ›</span></td></tr>`).join('')||'<tr><td colspan="6" class="hint">Không có nhà thầu / phiếu khớp.</td></tr>';
       $('cnt').textContent=`${L.length} nhà thầu · ${L.reduce((a,o)=>a+(q&&!o.nameHit?o.hit:o.n),0)} phiếu`;};
-    $('fq').oninput=e=>{fq=e.target.value;try{sessionStorage.setItem('tatca-fq',fq);}catch(_){}draw();};
+    /* danh sách gợi ý khi gõ: nhà thầu khớp tên + phiếu khớp mã/số/hạng mục */
+    let sg=[],act=-1;
+    const closeS=()=>{if(!$('sgl'))return;$('sgl').hidden=true;$('fq').setAttribute('aria-expanded','false');act=-1;};
+    const paintS=()=>{const el=$('sgl');el.innerHTML=sg.map((x,i)=>(x.h?`<div class="sg-h">${esc(x.h)}</div>`:'')+`<div class="sg-it" role="option" id="sg${i}" data-i="${i}" aria-selected="${i===act}"><span>${x.html}</span><small>${esc(x.sub)}</small></div>`).join('');
+      if(act>=0){const a=$('sg'+act);if(a)a.scrollIntoView({block:'nearest'});$('fq').setAttribute('aria-activedescendant','sg'+act);}};
+    const suggest=()=>{const q=vnKey(fq);if(!q){closeS();return;}
+      const gs=groups().filter(o=>o.rank>0).sort((a,b)=>b.rank-a.rank||a.g.localeCompare(b.g,'vi')).slice(0,8).map((o,k)=>({h:k===0?'Nhà thầu':'',html:esc(o.g),sub:`${o.n} phiếu${o.p?' · '+o.p+' chờ ký':''}`,go:()=>goG(o.g)}));
+      const ss=q.length<2?[]:idx.filter(s=>(!fs||s.status===fs)&&vnKey(String(s.code).replace(/^HH12[_-]?/i,'')+' '+String(s.head.so||'').replace(/^HH12[_-]?/i,'')+' '+(s.head.hang_muc||'')).includes(q)).slice(0,8).map((s,k)=>({h:k===0?'Phiếu':'',html:`<b>${esc(s.code)}</b> · ${esc(gname(s))}`,sub:`${fmtD(dk(s))} · ${s.status==='pending'?'chờ ký':s.status==='done'?'hoàn tất':'từ chối'}`,go:()=>{location.hash='#/phieu/'+s.id;}}));
+      sg=[...gs,...ss];act=sg.length?0:-1;if(!sg.length){$('sgl').innerHTML='<div class="sg-h">Không có kết quả</div>';$('sgl').hidden=false;return;}
+      $('sgl').hidden=false;$('fq').setAttribute('aria-expanded','true');paintS();};
+    $('fq').oninput=e=>{fq=e.target.value;try{sessionStorage.setItem('tatca-fq',fq);}catch(_){}draw();suggest();};
+    $('fq').onfocus=()=>{if(fq.trim())suggest();};
+    $('fq').onkeydown=e=>{if($('sgl').hidden||!sg.length){if(e.key==='Enter'){const L=groups();if(L.length===1)goG(L[0].g);}return;}
+      if(e.key==='ArrowDown'){e.preventDefault();act=(act+1)%sg.length;paintS();}else if(e.key==='ArrowUp'){e.preventDefault();act=(act-1+sg.length)%sg.length;paintS();}
+      else if(e.key==='Enter'){e.preventDefault();if(sg[act])sg[act].go();}else if(e.key==='Escape'){closeS();}};
+    $('sgl').onmousedown=e=>{const it=e.target.closest('[data-i]');if(!it)return;e.preventDefault();sg[+it.dataset.i].go();};
+    $('fq').onblur=()=>setTimeout(closeS,150);
+    $('glist').onclick=e=>{const tr=e.target.closest('tr[data-g]');if(tr)goG(tr.dataset.g);};
+    $('glist').onkeydown=e=>{const tr=e.target.closest('tr[data-g]');if(tr&&e.key==='Enter')goG(tr.dataset.g);};
     $('fs').onchange=e=>{fs=e.target.value;try{sessionStorage.setItem('tatca-fs',fs);}catch(_){}draw();};
     $('bxAll').onclick=()=>{if(!confirm('Xuất Excel tất cả nhà thầu phải tải toàn bộ phiếu kèm chữ ký (có thể mất 20–40 giây). Tiếp tục?'))return;exportXlsx(idx.filter(s=>!fs||s.status===fs));};
     draw();return;}
@@ -2568,7 +2596,7 @@ async function viewAll(sel){
   let all;const ck=sel+'|'+mine.map(s=>s.id+':'+s.status).join(',');
   try{all=BYG_CACHE[sel]&&BYG_CACHE[sel].k===ck?BYG_CACHE[sel].list:await DB.slipsByIds(mine.map(s=>s.id));BYG_CACHE[sel]={k:ck,list:all};}
   catch(e){app.innerHTML=`<div class="panel"><h2>Không tải được phiếu</h2><p class="hint">${esc(e.code||e.message)}</p></div>`;return;}
-  const draw=()=>{const q=fq.trim().toLowerCase();
+  const draw=()=>{const q=vnKey(fq);
     const l=all.filter(s=>(!fs||s.status===fs)&&(!q||hay(s).includes(q))).sort((a,b)=>dk(a).localeCompare(dk(b))||String(a.createdAt).localeCompare(String(b.createdAt)));
     const cols=ME.isAdmin?7:6;
     $('rows').innerHTML=l.map(s=>`<tr>${ME.isAdmin?`<td><button class="btn line sm" data-del="${s.id}" style="color:var(--bad);border-color:var(--bad);min-height:32px;padding:0 10px">Xoá</button></td>`:''}<td><a href="#/phieu/${s.id}">${esc(s.code)}</a></td><td>${esc(FORMS[s.type].name)}</td><td>${esc(fmtD(dk(s)))}</td><td>${s.items.length}</td><td>${badge(s)}</td><td class="hint">${esc(s.head.hang_muc||'')}</td></tr>`).join('')||`<tr><td colspan="${cols}" class="hint">Không có phiếu.</td></tr>`;
