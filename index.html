@@ -316,7 +316,7 @@ pre.bb-gen{margin:0;white-space:pre-wrap;font:14px/1.55 "Times New Roman",Times,
 <script type="module">
 /* ===================== Cấu hình (SỬA CÁC DÒNG NÀY KHI TẠO DỰ ÁN MỚI) ===================== */
 const PROJECT_CODE='HH12';
-const APP_VER='2026-11-22a'; // đổi mỗi lần cập nhật web: máy đang mở bản cũ sẽ được nhắc tải lại
+const APP_VER='2026-11-22b'; // đổi mỗi lần cập nhật web: máy đang mở bản cũ sẽ được nhắc tải lại
 const PROJECT_LABEL='DỰ ÁN KHÁCH SẠN, VĂN PHÒNG, BẢO TÀNG HH12 CỔ LOA';
 const NCC_CAT_KEY='Kết cấu';
 const ADMIN='hieukt1992@gmail.com';
@@ -1026,14 +1026,14 @@ async function exportXlsx(list,opt){
       sl.forEach(i=>{r++;ws.getRow(r).outlineLevel=1;[fmtD(s.head.ngay),s.code,s.head.don_vi||'',codeOf(i)||i.ma||'',i.ten,i.dvt,num(i.sl),s.head.bien_so||''].forEach((x,c)=>cell(ws,r,c+1,x,{left:c===4||c===2}));});});
     ws.views=[{state:'frozen',ySplit:4}];}
   // vật tư nhập tay: liệt kê đủ (kể cả chưa giao / không tính tồn) để đối chiếu với file gốc
-  if(tayRows.length){const ws=wb.addWorksheet(shName('Nhap tay ngoai phieu'));[6,10,30,24,8,11,16,12,22,22,15].forEach((w,i)=>ws.getColumn(i+1).width=w);
-    title(ws,'VẬT TƯ NHẬP TAY (NGOÀI PHIẾU ĐIỆN TỬ) · DỰ ÁN HH12 CỔ LOA',11);ws.getCell('A2').value='Ngày xuất báo cáo: '+fmtD(today())+' · "Đã giao" đã cộng vào Tổng hợp và sheet từng nhà thầu; "Chưa giao" / "Không tính tồn" chỉ liệt kê';ws.addRow([]);
-    ws.addRow(['STT','STT phiếu gốc','Tên vật tư (file gốc)','Gộp vào mã thiết bị','ĐVT','Số lượng','Số ĐĐH','Ngày giao','NTP-ĐTC (file gốc)','NTP-ĐTC (trên web)','Tình trạng']);hdr(ws,4);ws.getRow(4).height=34;
-    tayRows.slice().sort((a,b)=>String(a.doi).localeCompare(String(b.doi),'vi')||String(a.ngay).localeCompare(String(b.ngay))).forEach((t,i)=>{const r=5+i,c=t.ma&&CAT.find(x=>x[0]===t.ma);
-      [i+1,t.stt||'',t.ten,c?c[0]+' · '+c[1]:'',t.dvt,num(t.sl),t.ddh||'',t.ngay?fmtD(t.ngay):(t.ngayGoc||''),t.doiGoc||'',t.doi||'Chưa rõ',TAY_TT[t.tt]||t.tt].forEach((v,k)=>cell(ws,r,k+1,v,{left:[2,3,8,9].includes(k),fill:t.tt==='chua'?'FFFFF2CC':t.tt==='khong'?'FFEDEDED':undefined}));});
+  if(tayRows.length){const tD=await tayGet();const ws=wb.addWorksheet(shName('Nhap tay ngoai phieu'));[6,10,30,24,8,11,16,12,22,22,15,26].forEach((w,i)=>ws.getColumn(i+1).width=w);
+    title(ws,'VẬT TƯ NHẬP TAY (NGOÀI PHIẾU ĐIỆN TỬ) · DỰ ÁN HH12 CỔ LOA',12);ws.getCell('A2').value='Ngày xuất báo cáo: '+fmtD(today())+' · "Đã giao" đã cộng vào Tổng hợp và sheet từng nhà thầu; "Chưa giao" / "Không tính tồn" chỉ liệt kê';ws.addRow([]);
+    ws.addRow(['STT','STT phiếu gốc','Tên vật tư (file gốc)','Gộp vào mã thiết bị','ĐVT','Số lượng','Số ĐĐH','Ngày giao','NTP-ĐTC (file gốc)','NTP-ĐTC (trên web)','Tình trạng','Nguồn dữ liệu']);hdr(ws,4);ws.getRow(4).height=34;
+    tayRows.slice().sort((a,b)=>String(a.doi).localeCompare(String(b.doi),'vi')||String(taySrc(a,tD)).localeCompare(String(taySrc(b,tD)),'vi')||String(a.ngay).localeCompare(String(b.ngay))).forEach((t,i)=>{const r=5+i,c=t.ma&&CAT.find(x=>x[0]===t.ma);
+      [i+1,t.stt||'',t.ten,c?c[0]+' · '+c[1]:'',t.dvt,num(t.sl),t.ddh||'',t.ngay?fmtD(t.ngay):(t.ngayGoc||''),t.doiGoc||'',t.doi||'Chưa rõ',TAY_TT[t.tt]||t.tt,taySrc(t,tD)].forEach((v,k)=>cell(ws,r,k+1,v,{left:[2,3,8,9,11].includes(k),fill:t.tt==='chua'?'FFFFF2CC':t.tt==='khong'?'FFEDEDED':undefined}));});
     const lr=5+tayRows.length;cell(ws,lr,1,'TỔNG ĐÃ GIAO (cộng vào nhà thầu)',{bold:true,fill:GOLD,left:true});ws.mergeCells(lr,1,lr,5);
-    cell(ws,lr,6,{formula:`SUMIF(K5:K${lr-1},"Đã giao",F5:F${lr-1})`},{bold:true,fill:GOLD});for(let c=7;c<=11;c++)cell(ws,lr,c,undefined,{fill:GOLD});
-    ws.views=[{state:'frozen',ySplit:4}];ws.autoFilter={from:{row:4,column:1},to:{row:lr-1,column:11}};}
+    cell(ws,lr,6,{formula:`SUMIF(K5:K${lr-1},"Đã giao",F5:F${lr-1})`},{bold:true,fill:GOLD});for(let c=7;c<=12;c++)cell(ws,lr,c,undefined,{fill:GOLD});
+    ws.views=[{state:'frozen',ySplit:4}];ws.autoFilter={from:{row:4,column:1},to:{row:lr-1,column:12}};}
   // 2. Danh sách phiếu (mọi trạng thái)
   const w1=wb.addWorksheet('Danh sach phieu');
   w1.addRow(['Mã phiếu','Loại phiếu','Ngày lập','Số phiếu','Hạng mục','Đội / Đơn vị','Trạng thái','Số dòng thiết bị','Người lập','Giám sát phụ trách','Lý do từ chối','Vị trí / Zone (dự trù)']);hdr(w1,1);
@@ -2568,6 +2568,10 @@ const vnRank=(name,q)=>{const n=vnKey(name);if(!q)return 0;if(n.startsWith(q))re
 let TAY_CACHE=null;
 const tayGet=async()=>{if(TAY_CACHE&&Date.now()-TAY_CACHE.t<60000)return TAY_CACHE.d;let d=null;try{d=await DB.getTay();}catch(e){d=null;}TAY_CACHE={t:Date.now(),d};return d;};
 const TAY_TT={giao:'Đã giao',chua:'Chưa giao',khong:'Không tính tồn'};
+/* nhiều nguồn (mỗi file 1 nguồn, vd vật tư Truyền Linh, ván phủ phim): nhập lại 1 nguồn chỉ thay dòng của nguồn đó */
+const tayOld=d=>(d&&d.file)||'Nguồn 1';
+const taySrc=(r,d)=>r.src||tayOld(d);
+const taySrcs=d=>{const rows=(d&&d.rows)||[],M={};rows.forEach(r=>{const k=taySrc(r,d);M[k]=M[k]||{src:k,n:0,giao:0,chua:0,khong:0,...((d&&d.srcs&&d.srcs[k])||(k===tayOld(d)&&d?{file:d.file,by:d.by,at:d.at}:{}))};M[k].n++;M[k][r.tt]=(M[k][r.tt]||0)+1;});return Object.values(M);};
 /* gộp các dòng đã giao theo đội + ngày giao thành "đợt nhập tay" có dạng giống phiếu xuất kho đã ký xong */
 const tayPseudo=rows=>{const G={};(rows||[]).filter(r=>r.tt==='giao'&&+r.sl>0).forEach(r=>{const doi=r.doi||'Chưa rõ',k=doi+'|'+(r.ngay||'');
   const s=G[k]=G[k]||{id:'tay_'+Object.keys(G).length,_tay:true,type:'A',status:'done',code:'Nhập tay '+(r.ngay?fmtD(r.ngay):'(không rõ ngày)'),head:{doi,ngay:r.ngay||'',ngay_xuat:r.ngay||'',so:'',hang_muc:''},items:[],steps:[{role:'nguoi_de_nghi',label:'Nhập tay'}],currentStep:0,createdAt:r.ngay||''};
@@ -2607,32 +2611,37 @@ const tayDate=v=>{v=tayCell(v);if(v instanceof Date)return isNaN(v)?'':v.getUTCF
 async function tayParse(file){const wb=new ExcelJS.Workbook();await wb.xlsx.load(await file.arrayBuffer());const out=[];
   wb.worksheets.forEach(ws=>{let H=null;ws.eachRow({includeEmpty:false},(row,rn)=>{const g=c=>c?tayCell(row.getCell(c).value):'';
     if(!H){const h={};row.eachCell((c,ci)=>{const k=vnKey(String(tayCell(c.value)));if(!k)return;
-        if(/^stt/.test(k))h.stt=ci;else if(/ten vat tu|ten thiet bi/.test(k))h.ten=ci;else if(k==='dvt'||/don vi tinh/.test(k))h.dvt=ci;else if(/ddh|don dat hang/.test(k))h.ddh=ci;
-        else if(/so luong|^sl$/.test(k))h.sl=ci;else if(/ngay/.test(k))h.ngay=ci;else if(/ntp|dtc|doi|nha thau/.test(k))h.doi=ci;else if(/ghi chu/.test(k))h.gc=ci;});
+        if(/^stt/.test(k))h.stt=ci;else if(/ten vat tu|ten thiet bi|mo ta|ten hang/.test(k))h.ten=ci;else if(k==='dvt'||/don vi tinh/.test(k))h.dvt=ci;else if(/ddh|don dat hang/.test(k))h.ddh=ci;
+        else if(/so luong|^sl$/.test(k)){h.sl=ci;const p=String(tayCell(c.value)).match(/\(([^)]{1,10})\)/);if(p)h.dvt0=p[1].trim();}else if(/ngay/.test(k))h.ngay=ci;else if(/ntp|dtc|doi|nha thau/.test(k))h.doi=ci;else if(/ghi chu/.test(k))h.gc=ci;});
       if(h.ten&&h.sl&&h.doi)H=h;return;}
-    const ten=String(g(H.ten)).trim();if(!ten||/^tong cong/.test(vnKey(ten)))return;
+    const tc=row.getCell(H.ten);if(tc.isMerged&&tc.master&&tc.master.col!==H.ten)return;const ten=String(g(H.ten)).trim();if(!ten||/^tong\b/.test(vnKey(ten)))return;
     const sl=parseFloat(String(g(H.sl)).replace(/\s/g,'').replace(',','.'));if(!(sl>0))return;
-    const nv=g(H.ngay);out.push({sh:ws.name,dong:rn,stt:String(g(H.stt)).trim(),ten,dvt:String(g(H.dvt)).trim(),ddh:String(g(H.ddh)).trim(),sl,ngay:tayDate(nv),ngayGoc:nv instanceof Date?'':String(nv).trim(),doiGoc:String(g(H.doi)).trim(),gc:String(g(H.gc)).trim()});});});
+    const nv=g(H.ngay);out.push({sh:ws.name,dong:rn,stt:String(g(H.stt)).trim(),ten,dvt:String(g(H.dvt)).trim()||H.dvt0||'',ddh:String(g(H.ddh)).trim(),sl,ngay:tayDate(nv),ngayGoc:nv instanceof Date?'':String(nv).trim(),doiGoc:String(g(H.doi)).trim(),gc:String(g(H.gc)).trim()});});});
   return out;}
 async function tayAdmin(){const box=$('tayCur');if(!box)return;TAY_CACHE=null;const cur=await tayGet();
-  const rows=(cur&&cur.rows)||[],n=k=>rows.filter(r=>r.tt===k).length;
-  box.innerHTML=rows.length?`Đang có <b>${rows.length}</b> dòng: ${n('giao')} đã giao (đang cộng vào Thống kê), ${n('chua')} chưa giao, ${n('khong')} không tính tồn · file <b>${esc(cur.file||'')}</b> · nhập bởi ${esc(cur.by||'')} ${cur.at?esc(fmtDT(cur.at)):''}`:'Chưa có dữ liệu nhập tay.';
-  $('tayDel').hidden=!rows.length;
-  $('tayDel').onclick=async()=>{if(await modal(`<h3>Xoá dữ liệu nhập tay</h3><p>Xoá ${rows.length} dòng vật tư nhập tay? Thống kê và Xuất Excel sẽ chỉ còn số liệu từ phiếu. Có thể nhập lại file bất cứ lúc nào.</p><div class="row"><button class="btn red" data-m="y">Xoá</button><button class="btn" data-m="n">Huỷ</button></div>`)!=='y')return;
-    try{await DB.saveTay({rows:[],file:'',by:ME.name||(U&&U.name)||'',email:U?U.email:'',at:new Date().toISOString()});TAY_CACHE=null;toast('Đã xoá dữ liệu nhập tay.');tayAdmin();}catch(e){toast('Không xoá được: '+(e.code||e.message));}};
+  const rows=(cur&&cur.rows)||[],SR=taySrcs(cur);
+  box.innerHTML=rows.length?`Đang có <b>${rows.length}</b> dòng từ ${SR.length} nguồn:`+SR.map(x=>`<div class="card" style="padding:10px 12px;margin-top:6px"><div class="row" style="justify-content:space-between"><span><b>${esc(x.src)}</b> · ${x.n} dòng: ${x.giao||0} đã giao, ${x.chua||0} chưa giao, ${x.khong||0} không tính tồn<br><small>file ${esc(x.file||'')}${x.by?' · nhập bởi '+esc(x.by):''}${x.at?' '+esc(fmtDT(x.at)):''}</small></span><button class="btn sm" data-tsdel="${esc(x.src)}">Xoá nguồn này</button></div></div>`).join(''):'Chưa có dữ liệu nhập tay.';
+  $('tayDel').hidden=true;
+  box.querySelectorAll('[data-tsdel]').forEach(b=>b.onclick=async()=>{const k=b.dataset.tsdel,n=rows.filter(r=>taySrc(r,cur)===k).length;
+    if(await modal(`<h3>Xoá nguồn nhập tay</h3><p>Xoá ${n} dòng của nguồn <b>${esc(k)}</b>? Các nguồn khác giữ nguyên. Có thể nhập lại file bất cứ lúc nào.</p><div class="row"><button class="btn red" data-m="y">Xoá</button><button class="btn" data-m="n">Huỷ</button></div>`)!=='y')return;
+    const srcs={};SR.filter(x=>x.src!==k).forEach(x=>{srcs[x.src]={file:x.file||'',by:x.by||'',at:x.at||''};});
+    try{await DB.saveTay({rows:rows.filter(r=>taySrc(r,cur)!==k).map(r=>({...r,src:taySrc(r,cur)})),srcs,by:ME.name||(U&&U.name)||'',email:U?U.email:'',at:new Date().toISOString()});TAY_CACHE=null;toast('Đã xoá nguồn '+k);tayAdmin();}catch(e){toast('Không xoá được: '+(e.code||e.message));}});
   $('tayF').onchange=async e=>{const f=e.target.files[0];e.target.value='';if(!f)return;if(typeof ExcelJS==='undefined'){toast('Chưa tải được thư viện Excel, kiểm tra mạng.');return;}
     $('tayPv').innerHTML='<p class="hint">Đang đọc file…</p>';let rs;try{rs=await tayParse(f);}catch(x){$('tayPv').innerHTML=`<p class="warnbox">Không đọc được file: ${esc(x.message||x)}</p>`;return;}
     if(!rs.length){$('tayPv').innerHTML='<p class="warnbox">Không tìm thấy bảng có các cột "Tên vật tư", "Số lượng" và "NTP.ĐTC" (đội nhận).</p>';return;}
     tayPreview(f.name,rs);};}
-function tayPreview(fname,rs){
-  const D={},I={};
+async function tayPreview(fname,rs){
+  const D={},I={};const cur0=await tayGet(),SR=taySrcs(cur0),srcDef=(SR.find(x=>x.file===fname)||{}).src||fname.replace(/\.xlsx$/i,'');
   rs.forEach(r=>{const d=D[r.doiGoc]=D[r.doiGoc]||{raw:r.doiGoc,n:0,doi:tayDoi(r.doiGoc),tt:tayChua(r.doiGoc)?'chua':'giao'};d.n++;
     const k=vnKey(r.ten)+'|'+vnKey(r.dvt),it=I[k]=I[k]||{k,ten:r.ten.trim(),dvt:r.dvt,n:0,sl:0,ma:tayMa(r.ten,r.dvt),tinh:!tayKhong(r.ten)};it.n++;it.sl+=r.sl;});
   const DL=Object.values(D).sort((a,b)=>a.raw.localeCompare(b.raw,'vi')),IL=Object.values(I).sort((a,b)=>(!!a.ma-!!b.ma)||a.ten.localeCompare(b.ten,'vi'));
   const noDate=rs.filter(r=>!r.ngay);
   const doiOpts=d=>{const L=[...new Set([...LISTS.DOI,...(d.doi&&!LISTS.DOI.includes(d.doi)?[d.doi]:[])])];return `<option value="">(Chưa rõ đội)</option>`+L.map(x=>`<option${x===d.doi?' selected':''}>${esc(x)}</option>`).join('');};
   const catOpts='<option value="">— giữ tên gốc (vật tư khác) —</option>'+Object.entries(CATS).map(([g,L])=>`<optgroup label="${esc(g)}">${L.map(c=>`<option value="${c[0]}">${esc(c[0]+' · '+c[1]+' ('+c[2]+')')}</option>`).join('')}</optgroup>`).join('');
+  const today0=today(),fut=rs.filter(r=>r.ngay&&r.ngay>today0);
   $('tayPv').innerHTML=`<div class="card" style="padding:14px;margin-top:10px"><b>Đọc được ${rs.length} dòng</b> từ file <b>${esc(fname)}</b>. Kiểm tra 2 bảng dưới (ô viền đỏ là chỗ cần xem lại), chỉnh nếu cần rồi bấm <b>Lưu</b>.
+   <label class="f" style="margin-top:10px">Tên nguồn dữ liệu (trùng tên nguồn đang có thì thay nguồn đó, tên mới thì thêm vào)<input id="taySrcN" list="taySrcL" value="${esc(srcDef)}" style="max-width:420px"><datalist id="taySrcL">${SR.map(x=>`<option value="${esc(x.src)}">`).join('')}</datalist></label>
+   ${fut.length?`<p class="warnbox" style="margin:10px 0 0">${fut.length} dòng có ngày giao sau hôm nay (dòng ${fut.map(r=>r.dong).join(', ')}) – thường là gõ nhầm năm, nên sửa trong file rồi nhập lại.</p>`:''}
    ${noDate.length?`<p class="warnbox" style="margin:10px 0 0">${noDate.length} dòng không đọc được ngày giao (dòng ${noDate.map(r=>r.dong).join(', ')}): vẫn lưu, nhưng lọc theo ngày ở Thống kê sẽ không bắt được.</p>`:''}
    <h3 style="margin:14px 0 6px;font-size:16px">1. Đội nhận hàng (${DL.length})</h3><div class="scroll"><table class="t"><thead><tr><th>Ghi trong file</th><th>Số dòng</th><th>Đội trên web</th><th>Tình trạng</th></tr></thead><tbody>
    ${DL.map((d,i)=>`<tr><td>${esc(d.raw||'(trống)')}</td><td class="n">${d.n}</td><td><select data-td="${i}" style="min-width:200px${!d.doi||!LISTS.DOI.includes(d.doi)?';border-color:var(--bad)':''}">${doiOpts(d)}</select></td><td><select data-tt="${i}"><option value="giao"${d.tt==='giao'?' selected':''}>Đã giao (cộng vào đội)</option><option value="chua"${d.tt==='chua'?' selected':''}>Chưa giao (chỉ liệt kê)</option></select></td></tr>`).join('')}</tbody></table></div>
@@ -2640,7 +2649,7 @@ function tayPreview(fname,rs){
    <h3 style="margin:14px 0 6px;font-size:16px">2. Vật tư (${IL.length} loại) – gộp vào mã thiết bị trên web</h3><div class="scroll"><table class="t"><thead><tr><th>Tên trong file</th><th>ĐVT</th><th>Số dòng</th><th>Tổng SL</th><th>Gộp vào mã web</th><th>Tính tồn</th></tr></thead><tbody>
    ${IL.map((it,i)=>`<tr><td>${esc(it.ten)}</td><td>${esc(it.dvt)}</td><td class="n">${it.n}</td><td class="n">${Math.round(it.sl*100)/100}</td><td><select data-ti="${i}" style="min-width:240px${it.ma?'':';border-color:var(--bad)'}">${catOpts}</select></td><td style="text-align:center"><input type="checkbox" data-tk="${i}" ${it.tinh?'checked':''} style="width:18px;height:18px;min-height:0" aria-label="Tính tồn ${esc(it.ten)}"></td></tr>`).join('')}</tbody></table></div>
    <p class="hint">Gộp mã thì số lượng cộng chung với cùng mã trên phiếu điện tử (vd "La dẹt W400x3.2T" → LD-400). Bỏ chọn "Tính tồn" cho dòng không phải vật tư (cước xe…): vẫn liệt kê trong Excel, không cộng vào đội.</p>
-   <div class="row" style="margin-top:10px"><button class="btn blue" id="taySave">Lưu ${rs.length} dòng (thay dữ liệu nhập tay cũ)</button><button class="btn" id="tayCancel">Huỷ</button></div></div>`;
+   <div class="row" style="margin-top:10px"><button class="btn blue" id="taySave">Lưu ${rs.length} dòng vào nguồn này</button><button class="btn" id="tayCancel">Huỷ</button></div></div>`;
   IL.forEach((it,i)=>{app.querySelector(`[data-ti="${i}"]`).value=it.ma;});
   app.querySelectorAll('[data-td]').forEach(s=>s.onchange=()=>{DL[+s.dataset.td].doi=s.value;s.style.borderColor=s.value&&LISTS.DOI.includes(s.value)?'':'var(--bad)';});
   app.querySelectorAll('[data-tt]').forEach(s=>s.onchange=()=>{DL[+s.dataset.tt].tt=s.value;});
@@ -2650,7 +2659,9 @@ function tayPreview(fname,rs){
   $('taySave').onclick=async()=>{const b=$('taySave');b.disabled=true;
     const rows=rs.map(r=>{const d=D[r.doiGoc],it=I[vnKey(r.ten)+'|'+vnKey(r.dvt)];
       return {stt:r.stt,ten:r.ten,dvt:r.dvt,ddh:r.ddh,sl:r.sl,ngay:r.ngay,ngayGoc:r.ngay?'':r.ngayGoc,doiGoc:r.doiGoc,doi:d.doi||'',ma:it.ma||'',tt:d.tt==='chua'?'chua':it.tinh?'giao':'khong',gc:r.gc};});
-    try{await DB.saveTay({rows,file:fname,by:ME.name||(U&&U.name)||'',email:U?U.email:'',at:new Date().toISOString()});TAY_CACHE=null;toast('Đã lưu '+rows.length+' dòng vật tư nhập tay.');$('tayPv').innerHTML='';tayAdmin();}
+    const src=($('taySrcN').value||'').trim()||fname;TAY_CACHE=null;const cur=await tayGet(),old=((cur&&cur.rows)||[]).map(r=>({...r,src:taySrc(r,cur)})).filter(r=>r.src!==src);
+    const srcs={};taySrcs(cur).filter(x=>x.src!==src).forEach(x=>{srcs[x.src]={file:x.file||'',by:x.by||'',at:x.at||''};});const by=ME.name||(U&&U.name)||'',at=new Date().toISOString();srcs[src]={file:fname,by,at};
+    try{await DB.saveTay({rows:old.concat(rows.map(r=>({...r,src}))),srcs,by,email:U?U.email:'',at});TAY_CACHE=null;toast('Đã lưu '+rows.length+' dòng vào nguồn "'+src+'"'+(old.length?' (giữ '+old.length+' dòng nguồn khác)':''));$('tayPv').innerHTML='';tayAdmin();}
     catch(e){b.disabled=false;toast('Không lưu được: '+(e.code||e.message));}};
 }
 async function viewAll(sel){
@@ -2759,7 +2770,7 @@ async function viewAdmin(){
    ${STAMPS.map(r=>`<div class="card" style="padding:14px" data-st="${r}"><div class="row" style="justify-content:space-between"><b>${esc(ROLES[r])}</b><span class="hint">${stamps[r]&&stamps[r].sig?'Đã có chữ ký mẫu':'Chưa có'}</span></div>
     <div class="grid"><label class="f">Họ tên in trên phiếu<input data-stn="${r}" value="${esc((stamps[r]&&stamps[r].name)||'')}" placeholder="Nguyễn Văn A"></label><label class="f">Ảnh chữ ký (PNG/JPG)<input type="file" accept="image/*" data-stf="${r}"></label></div>
     ${stamps[r]&&stamps[r].sig?`<div class="sigprev ck" data-stpv="${r}"><img src="${stamps[r].sig}" alt="Chữ ký mẫu ${esc(ROLES[r])}"></div>`:''}<div class="row"><button class="btn blue sm" data-stsave="${r}">Lưu chữ ký mẫu</button>${stamps[r]&&stamps[r].sig?`<button class="btn sm" data-stclean="${r}">Làm sạch nền chữ ký đang lưu</button>`:''}</div></div>`).join('')}</section>
-   <section class="panel"><h2>Vật tư nhập tay (ngoài phiếu)</h2><p class="hint">Vật tư đã giao cho đội nhưng không có phiếu điện tử (file Excel tự tổng hợp từ trước). Lưu xong, số liệu được cộng vào <b>Thống kê</b> và các file <b>Xuất Excel</b> (ghi rõ "Nhập tay"). Mỗi lần nhập sẽ <b>thay toàn bộ</b> dữ liệu nhập tay cũ, nên luôn chọn file tổng hợp mới nhất.</p><div id="tayCur" class="hint">Đang kiểm tra…</div><div class="row" style="margin-top:8px"><label class="btn blue sm" style="cursor:pointer">Chọn file Excel…<input type="file" id="tayF" accept=".xlsx" hidden></label><button class="btn sm" id="tayDel" hidden>Xoá dữ liệu nhập tay</button></div><div id="tayPv"></div></section>
+   <section class="panel"><h2>Vật tư nhập tay (ngoài phiếu)</h2><p class="hint">Vật tư đã giao cho đội nhưng không có phiếu điện tử (file Excel tự tổng hợp từ trước). Lưu xong, số liệu được cộng vào <b>Thống kê</b> và các file <b>Xuất Excel</b> (ghi rõ "Nhập tay"). Mỗi file là một <b>nguồn</b> (vd vật tư Truyền Linh, ván phủ phim). Nhập lại file mới nhất của một nguồn sẽ <b>thay các dòng của nguồn đó</b>, các nguồn khác giữ nguyên.</p><div id="tayCur" class="hint">Đang kiểm tra…</div><div class="row" style="margin-top:8px"><label class="btn blue sm" style="cursor:pointer">Chọn file Excel…<input type="file" id="tayF" accept=".xlsx" hidden></label><button class="btn sm" id="tayDel" hidden>Xoá dữ liệu nhập tay</button></div><div id="tayPv"></div></section>
    <section class="panel"><h2>Bộ đếm số phiếu</h2><p class="hint">Mã phiếu tự sinh dạng HH12_TÊN-ĐỘI_001. Bấm nút dưới để bộ đếm của từng đội tiếp nối số phiếu đã có (làm 1 lần, bấm lại không hại).</p><div class="row"><button class="btn blue sm" id="syncSeq">Đồng bộ bộ đếm với phiếu cũ</button><span id="syncMsg" class="hint"></span></div></section>
    <section class="panel"><h2>Thêm người ký</h2><div class="grid"><label class="f">Email Google<input id="ne" type="email" placeholder="ten@gmail.com" autocomplete="off"></label><label class="f">Họ tên<input id="nn" placeholder="Nguyễn Văn A"></label></div>${roleBox('__new',[])}<div class="row"><button class="btn blue" id="add">Thêm</button><span id="msg" class="msg" hidden></span></div></section>
    <section class="panel"><h2>Danh sách (${list.length})</h2>${list.map(a=>`<div class="card" style="padding:14px"><div class="row" style="justify-content:space-between"><div><b>${esc(a.name||'')}</b><br><small class="hint">${esc(a.email)}${a.admin?' · quản trị':''}</small></div>${a.email===ADMIN?'':`<button class="btn sm" data-del="${esc(a.email)}">Xoá</button>`}</div>${roleBox(a.email,a.roles||[])}</div>`).join('')}</section>`;
@@ -2823,7 +2834,7 @@ async function viewStats(){
    <div class="row"><input id="stq" placeholder="Tìm nhà thầu" style="max-width:220px" aria-label="Tìm nhà thầu"><label class="hint">Từ <input type="date" id="std1" style="width:auto"></label><label class="hint">Đến <input type="date" id="std2" style="width:auto"></label>
    <label class="row" style="gap:6px"><input type="checkbox" id="stin" style="width:18px;height:18px;min-height:0"> Gồm phiếu chưa ký xong</label>${tayS.length?`<label class="row" style="gap:6px"><input type="checkbox" id="sttay" checked style="width:18px;height:18px;min-height:0"> Gồm vật tư nhập tay (${tayRows.filter(r=>r.tt==='giao').length} dòng)</label>`:''}<button class="btn blue sm" id="stx" style="margin-left:auto">Xuất Excel theo nhà thầu</button></div>
    <div class="stats" id="stsum" style="margin:12px 0"></div><div id="stlist" style="display:flex;flex-direction:column;gap:10px"></div>
-   <p class="hint">Xuất = phiếu xuất kho, Trả = phiếu trả kho, Dự trù = phiếu dự trù thiết bị (tính riêng, không trừ vào Còn tại đội). ${tayS.length?`Vật tư nhập tay = số liệu từ file Excel tổng hợp cũ (${esc(tayD.file||'')}), mỗi đội + ngày giao là 1 đợt; ${tayRows.filter(r=>r.tt==='chua').length} dòng chưa giao không tính. `:''}Không tính phiếu NCC. Còn tại đội = xuất trừ trả, cộng theo từng thiết bị. Bấm vào tên nhà thầu để xem chi tiết.</p>`;
+   <p class="hint">Xuất = phiếu xuất kho, Trả = phiếu trả kho, Dự trù = phiếu dự trù thiết bị (tính riêng, không trừ vào Còn tại đội). ${tayS.length?`Vật tư nhập tay = số liệu từ file Excel tổng hợp cũ (${esc(taySrcs(tayD).map(x=>x.src).join('; '))}), mỗi đội + ngày giao là 1 đợt; ${tayRows.filter(r=>r.tt==='chua').length} dòng chưa giao không tính. `:''}Không tính phiếu NCC. Còn tại đội = xuất trừ trả, cộng theo từng thiết bị. Bấm vào tên nhà thầu để xem chi tiết.</p>`;
   $('stq').oninput=e=>{q=e.target.value;draw();};$('std1').onchange=e=>{d1=e.target.value;draw();};$('std2').onchange=e=>{d2=e.target.value;draw();};$('stin').onchange=e=>{incl=e.target.checked;draw();};if($('sttay'))$('sttay').onchange=e=>{useTay=e.target.checked;draw();};
   draw();
 }
