@@ -316,7 +316,7 @@ pre.bb-gen{margin:0;white-space:pre-wrap;font:14px/1.55 "Times New Roman",Times,
 <script type="module">
 /* ===================== Cấu hình (SỬA CÁC DÒNG NÀY KHI TẠO DỰ ÁN MỚI) ===================== */
 const PROJECT_CODE='HH12';
-const APP_VER='2026-10-21c'; // đổi mỗi lần cập nhật web: máy đang mở bản cũ sẽ được nhắc tải lại
+const APP_VER='2026-11-22a'; // đổi mỗi lần cập nhật web: máy đang mở bản cũ sẽ được nhắc tải lại
 const PROJECT_LABEL='DỰ ÁN KHÁCH SẠN, VĂN PHÒNG, BẢO TÀNG HH12 CỔ LOA';
 const NCC_CAT_KEY='Kết cấu';
 const ADMIN='hieukt1992@gmail.com';
@@ -476,6 +476,8 @@ async function initFirebase(){
     delAllowed:e=>F.deleteDoc(D('allowed/'+e)),
     getStamp:async r=>{const s=await F.getDoc(D('stamps/'+r));return s.exists()?s.data():null;},
     setStamp:(r,o)=>F.setDoc(D('stamps/'+r),o),
+    getTay:async()=>{const x=await F.getDoc(D('vt_tay/main'));return x.exists()?x.data():null;},
+    saveTay:o=>F.setDoc(D('vt_tay/main'),o),
     getProfile:async u=>{const s=await F.getDoc(D('profiles/'+u));return s.exists()?s.data():null;},
     saveProfile:(u,o)=>F.setDoc(D('profiles/'+u),o,{merge:true}),
     syncSeq:async(key,min)=>{const r=F.doc(fs,'counters',key);return F.runTransaction(fs,async t=>{const d=await t.get(r);const c=d.exists()?d.data().n:0;if(min>c)t.set(r,{n:min});return Math.max(c,min);});},
@@ -580,6 +582,8 @@ function initMock(){
     delAllowed:async e=>{const d=ld();delete d.allowed[e];sv(d);},
     getStamp:async r=>(ld().stamps||{})[r]||null,
     setStamp:async(r,o)=>{const d=ld();d.stamps=d.stamps||{};d.stamps[r]=o;sv(d);},
+    getTay:async()=>ld().tay||null,
+    saveTay:async o=>{const d=ld();d.tay=o;sv(d);},
     getProfile:async u=>ld().profiles[u]||null,
     saveProfile:async(u,o)=>{const d=ld();d.profiles[u]={...(d.profiles[u]||{}),...o};sv(d);},
     syncSeq:async(key,min)=>{const d=ld();d.counters=d.counters||{};d.counters[key]=Math.max(d.counters[key]||0,min);sv(d);return d.counters[key];},
@@ -929,6 +933,10 @@ async function exportXlsx(list,opt){
   if(list.some(s=>s._lite)){toast('Đang tải chi tiết phiếu để xuất Excel…');try{const m={};
     if(list.length<=60)(await Promise.all(list.map(s=>DB.getSlip(s.id)))).filter(Boolean).forEach(s=>{m[s.id]=s;});else (await DB.listSlipsFull()).forEach(s=>{m[s.id]=s;});
     list=list.map(s=>m[s.id]||s);}catch(e){toast('Không tải được chi tiết: '+(e.code||e.message));return;}}
+  /* vật tư nhập tay (ngoài phiếu): opt.tay='all' hoặc tên 1 nhà thầu */
+  list=list.filter(s=>!s._tay);let tayRows=[];
+  if(opt&&opt.tay){const d=await tayGet();tayRows=((d&&d.rows)||[]).filter(r=>opt.tay==='all'||doiStd(r.doi||'Chưa rõ')===opt.tay);list=list.concat(tayPseudo(tayRows));}
+  const fnm=s=>s._tay?'Nhập tay (ngoài phiếu)':FORMS[s.type].name;
   const wb=new ExcelJS.Workbook();wb.creator='Phiếu điện tử HH12';
   const NAVY='FF0B2545',BD={style:'thin',color:{argb:'FFCFD8E6'}},BORD={top:BD,bottom:BD,left:BD,right:BD};
   const hdr=(ws,r)=>{const row=ws.getRow(r);row.font={bold:true,color:{argb:'FFFFFFFF'},name:'Times New Roman'};row.fill={type:'pattern',pattern:'solid',fgColor:{argb:NAVY}};row.alignment={vertical:'middle',horizontal:'center',wrapText:true};row.height=30;};
@@ -936,7 +944,7 @@ async function exportXlsx(list,opt){
   const num=v=>{const n=parseFloat(String(v).replace(',','.'));return isNaN(n)?0:n;};
   const usedNames=new Set(['Tong hop','Danh sach phieu']);
   const shName=n=>{let b=String(n||'Khac').replace(/[\[\]:*?\/\\]/g,' ').trim().slice(0,28)||'Khac',x=b,i=2;while(usedNames.has(x.toLowerCase())){x=b.slice(0,26)+' '+i++;}usedNames.add(x.toLowerCase());return x;};
-  const stt=s=>s.status==='pending'&&cur(s)?'Chờ '+cur(s).label:STATUS[s.status];
+  const stt=s=>s._tay?'Nhập tay':s.status==='pending'&&cur(s)?'Chờ '+cur(s).label:STATUS[s.status];
   const done=list.filter(s=>s.status==='done');
   // 1. Thống kê theo 23 mã thiết bị (đúng trật tự bảng mã HH12)
   const GRP=c=>/^RL/.test(c)?'Hệ giáo Ringlock':/^GN/.test(c)?'Giằng ngang':/^GX/.test(c)?'Giằng chéo':/^K[DU]/.test(c)?'Kích chống':/^TH100/.test(c)?'Thép hộp 50x100':/^TH50/.test(c)?'Thép hộp 50x50':'Phụ kiện hệ chống';
@@ -1001,9 +1009,9 @@ async function exportXlsx(list,opt){
     ['Ngày','Mã phiếu','Loại phiếu','Mã TB','Tên thiết bị','ĐVT','SL xuất','SL trả','SL dự trù','Vị trí / Zone'].forEach((h,c)=>ws.getCell(r,c+1).value=h);hdr(ws,r);ws.getRow(r).height=24;
     groups[g].slice().sort((a,b)=>dkey(a).localeCompare(dkey(b))||a.code.localeCompare(b.code)).forEach(s=>{
       const sl=s.items.slice().sort((a,b)=>ord(a)-ord(b)).filter(i=>num(i.sl));r++;const hr=r,f=r+1,l=r+sl.length;
-      [fmtD(dkey(s)),s.code,FORMS[s.type].name,'',sl.length+' dòng thiết bị','',null,null,null,s.head.zone||''].forEach((v,c)=>cell(ws,hr,c+1,v,{bold:true,fill:GFILL,left:c===4||c===9}));
+      [fmtD(dkey(s)),s.code,fnm(s),'',sl.length+' dòng thiết bị','',null,null,null,s.head.zone||''].forEach((v,c)=>cell(ws,hr,c+1,v,{bold:true,fill:GFILL,left:c===4||c===9}));
       ws.getCell(hr,7).value={formula:sl.length?`SUM(G${f}:G${l})`:'0'};ws.getCell(hr,8).value={formula:sl.length?`SUM(H${f}:H${l})`:'0'};ws.getCell(hr,9).value={formula:sl.length?`SUM(I${f}:I${l})`:'0'};
-      sl.forEach(i=>{r++;ws.getRow(r).outlineLevel=1;const v=num(i.sl);[fmtD(dkey(s)),s.code,FORMS[s.type].name,codeOf(i)||i.ma||'',i.ten,i.dvt,s.type==='A'?v:null,s.type==='T'?v:null,s.type==='D'?v:null,s.head.zone||''].forEach((x,c)=>cell(ws,r,c+1,x,{left:c===4||c===9}));});
+      sl.forEach(i=>{r++;ws.getRow(r).outlineLevel=1;const v=num(i.sl);[fmtD(dkey(s)),s.code,fnm(s),codeOf(i)||i.ma||'',i.ten,i.dvt,s.type==='A'?v:null,s.type==='T'?v:null,s.type==='D'?v:null,s.head.zone||''].forEach((x,c)=>cell(ws,r,c+1,x,{left:c===4||c===9}));});
     });
     ws.views=[{state:'frozen',ySplit:4}];
   });
@@ -1017,11 +1025,20 @@ async function exportXlsx(list,opt){
       ws.getCell(hr,7).value={formula:sl.length?`SUM(G${f}:G${l})`:'0'};
       sl.forEach(i=>{r++;ws.getRow(r).outlineLevel=1;[fmtD(s.head.ngay),s.code,s.head.don_vi||'',codeOf(i)||i.ma||'',i.ten,i.dvt,num(i.sl),s.head.bien_so||''].forEach((x,c)=>cell(ws,r,c+1,x,{left:c===4||c===2}));});});
     ws.views=[{state:'frozen',ySplit:4}];}
+  // vật tư nhập tay: liệt kê đủ (kể cả chưa giao / không tính tồn) để đối chiếu với file gốc
+  if(tayRows.length){const ws=wb.addWorksheet(shName('Nhap tay ngoai phieu'));[6,10,30,24,8,11,16,12,22,22,15].forEach((w,i)=>ws.getColumn(i+1).width=w);
+    title(ws,'VẬT TƯ NHẬP TAY (NGOÀI PHIẾU ĐIỆN TỬ) · DỰ ÁN HH12 CỔ LOA',11);ws.getCell('A2').value='Ngày xuất báo cáo: '+fmtD(today())+' · "Đã giao" đã cộng vào Tổng hợp và sheet từng nhà thầu; "Chưa giao" / "Không tính tồn" chỉ liệt kê';ws.addRow([]);
+    ws.addRow(['STT','STT phiếu gốc','Tên vật tư (file gốc)','Gộp vào mã thiết bị','ĐVT','Số lượng','Số ĐĐH','Ngày giao','NTP-ĐTC (file gốc)','NTP-ĐTC (trên web)','Tình trạng']);hdr(ws,4);ws.getRow(4).height=34;
+    tayRows.slice().sort((a,b)=>String(a.doi).localeCompare(String(b.doi),'vi')||String(a.ngay).localeCompare(String(b.ngay))).forEach((t,i)=>{const r=5+i,c=t.ma&&CAT.find(x=>x[0]===t.ma);
+      [i+1,t.stt||'',t.ten,c?c[0]+' · '+c[1]:'',t.dvt,num(t.sl),t.ddh||'',t.ngay?fmtD(t.ngay):(t.ngayGoc||''),t.doiGoc||'',t.doi||'Chưa rõ',TAY_TT[t.tt]||t.tt].forEach((v,k)=>cell(ws,r,k+1,v,{left:[2,3,8,9].includes(k),fill:t.tt==='chua'?'FFFFF2CC':t.tt==='khong'?'FFEDEDED':undefined}));});
+    const lr=5+tayRows.length;cell(ws,lr,1,'TỔNG ĐÃ GIAO (cộng vào nhà thầu)',{bold:true,fill:GOLD,left:true});ws.mergeCells(lr,1,lr,5);
+    cell(ws,lr,6,{formula:`SUMIF(K5:K${lr-1},"Đã giao",F5:F${lr-1})`},{bold:true,fill:GOLD});for(let c=7;c<=11;c++)cell(ws,lr,c,undefined,{fill:GOLD});
+    ws.views=[{state:'frozen',ySplit:4}];ws.autoFilter={from:{row:4,column:1},to:{row:lr-1,column:11}};}
   // 2. Danh sách phiếu (mọi trạng thái)
   const w1=wb.addWorksheet('Danh sach phieu');
   w1.addRow(['Mã phiếu','Loại phiếu','Ngày lập','Số phiếu','Hạng mục','Đội / Đơn vị','Trạng thái','Số dòng thiết bị','Người lập','Giám sát phụ trách','Lý do từ chối','Vị trí / Zone (dự trù)']);hdr(w1,1);
   list.slice().sort((a,b)=>(a.type==='N')-(b.type==='N')||who(a).localeCompare(who(b),'vi')||String(a.head.ngay||'').localeCompare(String(b.head.ngay||''))).forEach(s=>{const sg=x=>x&&x.sig?`${x.name} (${fmtDT(x.at)})`:'';const gp=s.steps.find(x=>x.role==='gs_phu_trach');
-    w1.addRow([s.code,FORMS[s.type].name,fmtD(s.head.ngay),s.head.so||'',s.head.hang_muc||'',who(s),stt(s),s.items.length,sg(s.steps[0]),sg(gp),s.rejectReason||'',s.head.zone||'']);});
+    w1.addRow([s.code,fnm(s),fmtD(s.head.ngay),s.head.so||'',s.head.hang_muc||'',who(s),stt(s),s.items.length,sg(s.steps[0]),sg(gp),s.rejectReason||'',s.head.zone||'']);});
   [20,30,12,12,18,24,22,12,28,28,28,22].forEach((w,i)=>w1.getColumn(i+1).width=w);box(w1,2);w1.views=[{state:'frozen',ySplit:1}];
   const buf=await wb.xlsx.writeBuffer();
   const fname=(opt&&opt.name)||('Thong-ke-xuat-tra-kho-'+PROJECT_CODE+'_'+today());
@@ -2545,6 +2562,97 @@ async function viewQueue(){
 const BYG_CACHE={};
 const vnKey=s=>String(s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/đ/g,'d').replace(/Đ/g,'D').toLowerCase().replace(/\s+/g,' ').trim();
 const vnRank=(name,q)=>{const n=vnKey(name);if(!q)return 0;if(n.startsWith(q))return 3;if((' '+n).includes(' '+q))return 2;return n.includes(q)?1:0;}; // 3 đầu tên, 2 đầu 1 từ, 1 chứa
+/* ===================== Vật tư nhập tay (ngoài phiếu điện tử) =====================
+   File Excel tự tổng hợp từ trước (vd báo cáo vật tư Truyền Linh) -> quản trị nhập 1 lần ở mục Quản trị
+   -> cộng vào Thống kê + các file Xuất Excel, ghi rõ "Nhập tay". Dữ liệu lưu ở vt_tay/main (chỉ thành viên đọc). */
+let TAY_CACHE=null;
+const tayGet=async()=>{if(TAY_CACHE&&Date.now()-TAY_CACHE.t<60000)return TAY_CACHE.d;let d=null;try{d=await DB.getTay();}catch(e){d=null;}TAY_CACHE={t:Date.now(),d};return d;};
+const TAY_TT={giao:'Đã giao',chua:'Chưa giao',khong:'Không tính tồn'};
+/* gộp các dòng đã giao theo đội + ngày giao thành "đợt nhập tay" có dạng giống phiếu xuất kho đã ký xong */
+const tayPseudo=rows=>{const G={};(rows||[]).filter(r=>r.tt==='giao'&&+r.sl>0).forEach(r=>{const doi=r.doi||'Chưa rõ',k=doi+'|'+(r.ngay||'');
+  const s=G[k]=G[k]||{id:'tay_'+Object.keys(G).length,_tay:true,type:'A',status:'done',code:'Nhập tay '+(r.ngay?fmtD(r.ngay):'(không rõ ngày)'),head:{doi,ngay:r.ngay||'',ngay_xuat:r.ngay||'',so:'',hang_muc:''},items:[],steps:[{role:'nguoi_de_nghi',label:'Nhập tay'}],currentStep:0,createdAt:r.ngay||''};
+  const c=r.ma&&CAT.find(x=>x[0]===r.ma);s.items.push(c?{ma:c[0],ten:c[1]+' ('+c[0]+')',dvt:c[2],sl:String(r.sl)}:{ten:r.ten,dvt:r.dvt||'',sl:String(r.sl)});});
+  return Object.values(G);};
+/* tự gợi ý mã thiết bị web cho tên vật tư gõ tay; chỉ gộp khi cùng ĐVT với bảng mã */
+const tayMa=(ten,dvt)=>{const k=vnKey(ten).replace(/[-–]/g,' ');let m,ma='';
+  if((m=k.match(/la det\s*w?\s*(\d+)/)))ma='LD-'+m[1];
+  else if(/chot (tron )?dai/.test(k))ma='PN-CDA';
+  else if(/chot tron/.test(k))ma='PN-CT';
+  else if(/chot det/.test(k))ma='PN-CD';
+  else if(/kep dam|cum xa go/.test(k))ma='PN-KD';
+  else if(/d ?cone/.test(k))ma='PN-DC';
+  else if(/bat vuong/.test(k))ma='PN-BV';
+  else if(/tai chuon/.test(k))ma='PN-TCH';
+  else if(/bat chup/.test(k))ma='BC-BCG';
+  else if(/dau chup|^ty chup/.test(k))ma='BC-TDC';
+  else if(/(ty ?ren|ren suot).*l ?300/.test(k))ma='PN-TR3';
+  else if(/ty ?neo|ren neo/.test(k))ma='PN-TRN';
+  else if((m=k.match(/sepa ?tie\s*l?\s*(\d+)/)))ma='SP-'+m[1];
+  const c=CAT.find(x=>x[0]===ma);return c&&vnKey(c[2])===vnKey(dvt||c[2])?ma:'';};
+const tayKhong=ten=>/cuoc|van chuyen|grab|grap/.test(vnKey(ten));
+const tayStrip=s=>vnKey(s).replace(/\(.*?\)/g,'').replace(/^(ntp|dtc|doi|to)\s+/,'').trim();
+const tayLev=(a,b)=>{const d=[...Array(b.length+1).keys()];for(let i=1;i<=a.length;i++){let p=d[0];d[0]=i;for(let j=1;j<=b.length;j++){const t=d[j];d[j]=Math.min(d[j]+1,d[j-1]+1,p+(a[i-1]===b[j-1]?0:1));p=t;}}return d[b.length];};
+const tayChua=t=>/chua giao/.test(vnKey(t));
+const tayDoi=raw=>{const t=String(raw||'').trim();if(!t)return '';const a=doiStd(t);if(a!==t)return a;const k=tayStrip(t);
+  let f=LISTS.DOI.find(d=>tayStrip(d)===k);if(f)return f;
+  f=LISTS.DOI.find(d=>{const x=tayStrip(d);return x.length>=5&&tayLev(x,k)<=1;});if(f)return f;
+  if(tayChua(t)){f=LISTS.DOI.find(d=>(' '+vnKey(t)+' ').includes(' '+tayStrip(d)+' '));return f||'';}
+  return t;};
+const tayCell=v=>{if(v==null)return '';if(v instanceof Date)return v;if(typeof v==='object'){if('result' in v)return tayCell(v.result);if(v.richText)return v.richText.map(x=>x.text).join('');if('text' in v)return v.text;return '';}return v;};
+const tayDate=v=>{v=tayCell(v);if(v instanceof Date)return isNaN(v)?'':v.getUTCFullYear()+'-'+pad2(v.getUTCMonth()+1)+'-'+pad2(v.getUTCDate());
+  if(typeof v==='number')return tayDate(new Date(Math.round((v-25569)*864e5)));
+  const m=String(v).trim().match(/^(\d{1,2})[\/.-](\d{1,2})[\/.-](\d{4})$/);if(m&&+m[2]>=1&&+m[2]<=12&&+m[1]>=1&&+m[1]<=31)return m[3]+'-'+pad2(+m[2])+'-'+pad2(+m[1]);
+  const i=String(v).trim().match(/^(\d{4})-(\d{2})-(\d{2})/);return i?i[1]+'-'+i[2]+'-'+i[3]:'';};
+/* đọc mọi sheet: tìm dòng tiêu đề có cột Tên vật tư + Số lượng + NTP/ĐTC, lấy các dòng bên dưới */
+async function tayParse(file){const wb=new ExcelJS.Workbook();await wb.xlsx.load(await file.arrayBuffer());const out=[];
+  wb.worksheets.forEach(ws=>{let H=null;ws.eachRow({includeEmpty:false},(row,rn)=>{const g=c=>c?tayCell(row.getCell(c).value):'';
+    if(!H){const h={};row.eachCell((c,ci)=>{const k=vnKey(String(tayCell(c.value)));if(!k)return;
+        if(/^stt/.test(k))h.stt=ci;else if(/ten vat tu|ten thiet bi/.test(k))h.ten=ci;else if(k==='dvt'||/don vi tinh/.test(k))h.dvt=ci;else if(/ddh|don dat hang/.test(k))h.ddh=ci;
+        else if(/so luong|^sl$/.test(k))h.sl=ci;else if(/ngay/.test(k))h.ngay=ci;else if(/ntp|dtc|doi|nha thau/.test(k))h.doi=ci;else if(/ghi chu/.test(k))h.gc=ci;});
+      if(h.ten&&h.sl&&h.doi)H=h;return;}
+    const ten=String(g(H.ten)).trim();if(!ten||/^tong cong/.test(vnKey(ten)))return;
+    const sl=parseFloat(String(g(H.sl)).replace(/\s/g,'').replace(',','.'));if(!(sl>0))return;
+    const nv=g(H.ngay);out.push({sh:ws.name,dong:rn,stt:String(g(H.stt)).trim(),ten,dvt:String(g(H.dvt)).trim(),ddh:String(g(H.ddh)).trim(),sl,ngay:tayDate(nv),ngayGoc:nv instanceof Date?'':String(nv).trim(),doiGoc:String(g(H.doi)).trim(),gc:String(g(H.gc)).trim()});});});
+  return out;}
+async function tayAdmin(){const box=$('tayCur');if(!box)return;TAY_CACHE=null;const cur=await tayGet();
+  const rows=(cur&&cur.rows)||[],n=k=>rows.filter(r=>r.tt===k).length;
+  box.innerHTML=rows.length?`Đang có <b>${rows.length}</b> dòng: ${n('giao')} đã giao (đang cộng vào Thống kê), ${n('chua')} chưa giao, ${n('khong')} không tính tồn · file <b>${esc(cur.file||'')}</b> · nhập bởi ${esc(cur.by||'')} ${cur.at?esc(fmtDT(cur.at)):''}`:'Chưa có dữ liệu nhập tay.';
+  $('tayDel').hidden=!rows.length;
+  $('tayDel').onclick=async()=>{if(await modal(`<h3>Xoá dữ liệu nhập tay</h3><p>Xoá ${rows.length} dòng vật tư nhập tay? Thống kê và Xuất Excel sẽ chỉ còn số liệu từ phiếu. Có thể nhập lại file bất cứ lúc nào.</p><div class="row"><button class="btn red" data-m="y">Xoá</button><button class="btn" data-m="n">Huỷ</button></div>`)!=='y')return;
+    try{await DB.saveTay({rows:[],file:'',by:ME.name||(U&&U.name)||'',email:U?U.email:'',at:new Date().toISOString()});TAY_CACHE=null;toast('Đã xoá dữ liệu nhập tay.');tayAdmin();}catch(e){toast('Không xoá được: '+(e.code||e.message));}};
+  $('tayF').onchange=async e=>{const f=e.target.files[0];e.target.value='';if(!f)return;if(typeof ExcelJS==='undefined'){toast('Chưa tải được thư viện Excel, kiểm tra mạng.');return;}
+    $('tayPv').innerHTML='<p class="hint">Đang đọc file…</p>';let rs;try{rs=await tayParse(f);}catch(x){$('tayPv').innerHTML=`<p class="warnbox">Không đọc được file: ${esc(x.message||x)}</p>`;return;}
+    if(!rs.length){$('tayPv').innerHTML='<p class="warnbox">Không tìm thấy bảng có các cột "Tên vật tư", "Số lượng" và "NTP.ĐTC" (đội nhận).</p>';return;}
+    tayPreview(f.name,rs);};}
+function tayPreview(fname,rs){
+  const D={},I={};
+  rs.forEach(r=>{const d=D[r.doiGoc]=D[r.doiGoc]||{raw:r.doiGoc,n:0,doi:tayDoi(r.doiGoc),tt:tayChua(r.doiGoc)?'chua':'giao'};d.n++;
+    const k=vnKey(r.ten)+'|'+vnKey(r.dvt),it=I[k]=I[k]||{k,ten:r.ten.trim(),dvt:r.dvt,n:0,sl:0,ma:tayMa(r.ten,r.dvt),tinh:!tayKhong(r.ten)};it.n++;it.sl+=r.sl;});
+  const DL=Object.values(D).sort((a,b)=>a.raw.localeCompare(b.raw,'vi')),IL=Object.values(I).sort((a,b)=>(!!a.ma-!!b.ma)||a.ten.localeCompare(b.ten,'vi'));
+  const noDate=rs.filter(r=>!r.ngay);
+  const doiOpts=d=>{const L=[...new Set([...LISTS.DOI,...(d.doi&&!LISTS.DOI.includes(d.doi)?[d.doi]:[])])];return `<option value="">(Chưa rõ đội)</option>`+L.map(x=>`<option${x===d.doi?' selected':''}>${esc(x)}</option>`).join('');};
+  const catOpts='<option value="">— giữ tên gốc (vật tư khác) —</option>'+Object.entries(CATS).map(([g,L])=>`<optgroup label="${esc(g)}">${L.map(c=>`<option value="${c[0]}">${esc(c[0]+' · '+c[1]+' ('+c[2]+')')}</option>`).join('')}</optgroup>`).join('');
+  $('tayPv').innerHTML=`<div class="card" style="padding:14px;margin-top:10px"><b>Đọc được ${rs.length} dòng</b> từ file <b>${esc(fname)}</b>. Kiểm tra 2 bảng dưới (ô viền đỏ là chỗ cần xem lại), chỉnh nếu cần rồi bấm <b>Lưu</b>.
+   ${noDate.length?`<p class="warnbox" style="margin:10px 0 0">${noDate.length} dòng không đọc được ngày giao (dòng ${noDate.map(r=>r.dong).join(', ')}): vẫn lưu, nhưng lọc theo ngày ở Thống kê sẽ không bắt được.</p>`:''}
+   <h3 style="margin:14px 0 6px;font-size:16px">1. Đội nhận hàng (${DL.length})</h3><div class="scroll"><table class="t"><thead><tr><th>Ghi trong file</th><th>Số dòng</th><th>Đội trên web</th><th>Tình trạng</th></tr></thead><tbody>
+   ${DL.map((d,i)=>`<tr><td>${esc(d.raw||'(trống)')}</td><td class="n">${d.n}</td><td><select data-td="${i}" style="min-width:200px${!d.doi||!LISTS.DOI.includes(d.doi)?';border-color:var(--bad)':''}">${doiOpts(d)}</select></td><td><select data-tt="${i}"><option value="giao"${d.tt==='giao'?' selected':''}>Đã giao (cộng vào đội)</option><option value="chua"${d.tt==='chua'?' selected':''}>Chưa giao (chỉ liệt kê)</option></select></td></tr>`).join('')}</tbody></table></div>
+   <p class="hint">Tên không có trong danh sách đội của web (viền đỏ) sẽ được giữ nguyên thành một nhà thầu riêng. Nếu đó là đội đã có phiếu dưới tên khác, chọn đúng tên để gộp.</p>
+   <h3 style="margin:14px 0 6px;font-size:16px">2. Vật tư (${IL.length} loại) – gộp vào mã thiết bị trên web</h3><div class="scroll"><table class="t"><thead><tr><th>Tên trong file</th><th>ĐVT</th><th>Số dòng</th><th>Tổng SL</th><th>Gộp vào mã web</th><th>Tính tồn</th></tr></thead><tbody>
+   ${IL.map((it,i)=>`<tr><td>${esc(it.ten)}</td><td>${esc(it.dvt)}</td><td class="n">${it.n}</td><td class="n">${Math.round(it.sl*100)/100}</td><td><select data-ti="${i}" style="min-width:240px${it.ma?'':';border-color:var(--bad)'}">${catOpts}</select></td><td style="text-align:center"><input type="checkbox" data-tk="${i}" ${it.tinh?'checked':''} style="width:18px;height:18px;min-height:0" aria-label="Tính tồn ${esc(it.ten)}"></td></tr>`).join('')}</tbody></table></div>
+   <p class="hint">Gộp mã thì số lượng cộng chung với cùng mã trên phiếu điện tử (vd "La dẹt W400x3.2T" → LD-400). Bỏ chọn "Tính tồn" cho dòng không phải vật tư (cước xe…): vẫn liệt kê trong Excel, không cộng vào đội.</p>
+   <div class="row" style="margin-top:10px"><button class="btn blue" id="taySave">Lưu ${rs.length} dòng (thay dữ liệu nhập tay cũ)</button><button class="btn" id="tayCancel">Huỷ</button></div></div>`;
+  IL.forEach((it,i)=>{app.querySelector(`[data-ti="${i}"]`).value=it.ma;});
+  app.querySelectorAll('[data-td]').forEach(s=>s.onchange=()=>{DL[+s.dataset.td].doi=s.value;s.style.borderColor=s.value&&LISTS.DOI.includes(s.value)?'':'var(--bad)';});
+  app.querySelectorAll('[data-tt]').forEach(s=>s.onchange=()=>{DL[+s.dataset.tt].tt=s.value;});
+  app.querySelectorAll('[data-ti]').forEach(s=>s.onchange=()=>{IL[+s.dataset.ti].ma=s.value;s.style.borderColor=s.value?'':'var(--bad)';});
+  app.querySelectorAll('[data-tk]').forEach(c=>c.onchange=()=>{IL[+c.dataset.tk].tinh=c.checked;});
+  $('tayCancel').onclick=()=>{$('tayPv').innerHTML='';};
+  $('taySave').onclick=async()=>{const b=$('taySave');b.disabled=true;
+    const rows=rs.map(r=>{const d=D[r.doiGoc],it=I[vnKey(r.ten)+'|'+vnKey(r.dvt)];
+      return {stt:r.stt,ten:r.ten,dvt:r.dvt,ddh:r.ddh,sl:r.sl,ngay:r.ngay,ngayGoc:r.ngay?'':r.ngayGoc,doiGoc:r.doiGoc,doi:d.doi||'',ma:it.ma||'',tt:d.tt==='chua'?'chua':it.tinh?'giao':'khong',gc:r.gc};});
+    try{await DB.saveTay({rows,file:fname,by:ME.name||(U&&U.name)||'',email:U?U.email:'',at:new Date().toISOString()});TAY_CACHE=null;toast('Đã lưu '+rows.length+' dòng vật tư nhập tay.');$('tayPv').innerHTML='';tayAdmin();}
+    catch(e){b.disabled=false;toast('Không lưu được: '+(e.code||e.message));}};
+}
 async function viewAll(sel){
   if(!U)return needLogin('Đăng nhập Google để xem toàn bộ phiếu.');
   if(!ME.member)return needMember();
@@ -2588,7 +2696,7 @@ async function viewAll(sel){
     $('glist').onclick=e=>{const tr=e.target.closest('tr[data-g]');if(tr)goG(tr.dataset.g);};
     $('glist').onkeydown=e=>{const tr=e.target.closest('tr[data-g]');if(tr&&e.key==='Enter')goG(tr.dataset.g);};
     $('fs').onchange=e=>{fs=e.target.value;try{sessionStorage.setItem('tatca-fs',fs);}catch(_){}draw();};
-    $('bxAll').onclick=()=>{if(!confirm('Xuất Excel tất cả nhà thầu phải tải toàn bộ phiếu kèm chữ ký (có thể mất 20–40 giây). Tiếp tục?'))return;exportXlsx(idx.filter(s=>!fs||s.status===fs));};
+    $('bxAll').onclick=()=>{if(!confirm('Xuất Excel tất cả nhà thầu phải tải toàn bộ phiếu kèm chữ ký (có thể mất 20–40 giây). Tiếp tục?'))return;exportXlsx(idx.filter(s=>!fs||s.status===fs),{tay:(!fs||fs==='done')?'all':null});};
     draw();return;}
   /* ===== Bước 2: phiếu của 1 nhà thầu ===== */
   const mine=idx.filter(s=>gname(s)===sel);
@@ -2600,7 +2708,7 @@ async function viewAll(sel){
     const l=all.filter(s=>(!fs||s.status===fs)&&(!q||hay(s).includes(q))).sort((a,b)=>dk(a).localeCompare(dk(b))||String(a.createdAt).localeCompare(String(b.createdAt)));
     const cols=ME.isAdmin?7:6;
     $('rows').innerHTML=l.map(s=>`<tr>${ME.isAdmin?`<td><button class="btn line sm" data-del="${s.id}" style="color:var(--bad);border-color:var(--bad);min-height:32px;padding:0 10px">Xoá</button></td>`:''}<td><a href="#/phieu/${s.id}">${esc(s.code)}</a></td><td>${esc(FORMS[s.type].name)}</td><td>${esc(fmtD(dk(s)))}</td><td>${s.items.length}</td><td>${badge(s)}</td><td class="hint">${esc(s.head.hang_muc||'')}</td></tr>`).join('')||`<tr><td colspan="${cols}" class="hint">Không có phiếu.</td></tr>`;
-    $('cnt').textContent=l.length+' phiếu';$('bx').onclick=()=>exportXlsx(l);
+    $('cnt').textContent=l.length+' phiếu';$('bx').onclick=()=>exportXlsx(l,{tay:(!fs||fs==='done')&&!q?sel:null});
     document.querySelectorAll('[data-del]').forEach(b=>b.onclick=()=>{const s=all.find(x=>x.id===b.dataset.del);delSlip(s,()=>{all=all.filter(x=>x.id!==s.id);idx=idx.filter(x=>x.id!==s.id);delete BYG_CACHE[sel];draw();});});};
   app.innerHTML=`<div class="eyebrow"><a href="#/tatca">← Tất cả nhà thầu</a> · phiếu mới nhất ở cuối</div><h2 style="margin:4px 0 12px;font-size:26px;color:var(--navy)">${esc(sel)}</h2>
    <div class="row"><input id="fq" type="search" placeholder="Tìm mã phiếu, hạng mục" style="max-width:280px" aria-label="Tìm phiếu" value="${esc(fq)}"><select id="fs" style="max-width:190px" aria-label="Lọc trạng thái">${stOpts(fs)}</select><span id="cnt" class="hint"></span><button class="btn blue sm" id="bx" style="margin-left:auto">Xuất Excel nhà thầu này</button></div>
@@ -2651,9 +2759,11 @@ async function viewAdmin(){
    ${STAMPS.map(r=>`<div class="card" style="padding:14px" data-st="${r}"><div class="row" style="justify-content:space-between"><b>${esc(ROLES[r])}</b><span class="hint">${stamps[r]&&stamps[r].sig?'Đã có chữ ký mẫu':'Chưa có'}</span></div>
     <div class="grid"><label class="f">Họ tên in trên phiếu<input data-stn="${r}" value="${esc((stamps[r]&&stamps[r].name)||'')}" placeholder="Nguyễn Văn A"></label><label class="f">Ảnh chữ ký (PNG/JPG)<input type="file" accept="image/*" data-stf="${r}"></label></div>
     ${stamps[r]&&stamps[r].sig?`<div class="sigprev ck" data-stpv="${r}"><img src="${stamps[r].sig}" alt="Chữ ký mẫu ${esc(ROLES[r])}"></div>`:''}<div class="row"><button class="btn blue sm" data-stsave="${r}">Lưu chữ ký mẫu</button>${stamps[r]&&stamps[r].sig?`<button class="btn sm" data-stclean="${r}">Làm sạch nền chữ ký đang lưu</button>`:''}</div></div>`).join('')}</section>
+   <section class="panel"><h2>Vật tư nhập tay (ngoài phiếu)</h2><p class="hint">Vật tư đã giao cho đội nhưng không có phiếu điện tử (file Excel tự tổng hợp từ trước). Lưu xong, số liệu được cộng vào <b>Thống kê</b> và các file <b>Xuất Excel</b> (ghi rõ "Nhập tay"). Mỗi lần nhập sẽ <b>thay toàn bộ</b> dữ liệu nhập tay cũ, nên luôn chọn file tổng hợp mới nhất.</p><div id="tayCur" class="hint">Đang kiểm tra…</div><div class="row" style="margin-top:8px"><label class="btn blue sm" style="cursor:pointer">Chọn file Excel…<input type="file" id="tayF" accept=".xlsx" hidden></label><button class="btn sm" id="tayDel" hidden>Xoá dữ liệu nhập tay</button></div><div id="tayPv"></div></section>
    <section class="panel"><h2>Bộ đếm số phiếu</h2><p class="hint">Mã phiếu tự sinh dạng HH12_TÊN-ĐỘI_001. Bấm nút dưới để bộ đếm của từng đội tiếp nối số phiếu đã có (làm 1 lần, bấm lại không hại).</p><div class="row"><button class="btn blue sm" id="syncSeq">Đồng bộ bộ đếm với phiếu cũ</button><span id="syncMsg" class="hint"></span></div></section>
    <section class="panel"><h2>Thêm người ký</h2><div class="grid"><label class="f">Email Google<input id="ne" type="email" placeholder="ten@gmail.com" autocomplete="off"></label><label class="f">Họ tên<input id="nn" placeholder="Nguyễn Văn A"></label></div>${roleBox('__new',[])}<div class="row"><button class="btn blue" id="add">Thêm</button><span id="msg" class="msg" hidden></span></div></section>
    <section class="panel"><h2>Danh sách (${list.length})</h2>${list.map(a=>`<div class="card" style="padding:14px"><div class="row" style="justify-content:space-between"><div><b>${esc(a.name||'')}</b><br><small class="hint">${esc(a.email)}${a.admin?' · quản trị':''}</small></div>${a.email===ADMIN?'':`<button class="btn sm" data-del="${esc(a.email)}">Xoá</button>`}</div>${roleBox(a.email,a.roles||[])}</div>`).join('')}</section>`;
+  tayAdmin();
   const setMsg=(t,k)=>{$('msg').hidden=!t;$('msg').textContent=t||'';$('msg').className='msg '+(k||'');};
   $('syncSeq').onclick=async()=>{try{const all=await DB.listSlips();const cnt={};all.forEach(s=>{const k=slugOf(s.head.doi||s.head.don_vi,s.type==='N',s.type==='D');cnt[k]=(cnt[k]||0)+1;});const out=[];for(const k of Object.keys(cnt)){const n=await DB.syncSeq(k,cnt[k]);out.push(k+': '+n);}$('syncMsg').textContent=out.length?'Đã đồng bộ — '+out.join(' · '):'Chưa có phiếu.';}catch(e){$('syncMsg').textContent='Lỗi: '+(e.code||e.message);}};
   app.querySelectorAll('[data-stsave]').forEach(b=>b.onclick=async()=>{
@@ -2685,12 +2795,13 @@ async function viewStats(){
   if(!U)return needLogin('Đăng nhập Google để xem thống kê thiết bị.');
   if(!ME.member)return needMember();
   const all=await loadSlips();if(!all)return;
+  const tayD=await tayGet(),tayRows=(tayD&&tayD.rows)||[],tayS=tayPseudo(tayRows);let useTay=tayS.length>0;
   const num=v=>{const n=parseFloat(String(v).replace(',','.'));return isNaN(n)?0:n;};
   const fmtN=n=>Number.isInteger(n)?String(n):String(Math.round(n*100)/100);
   let incl=false,q='',open=null,d1='',d2='';
   const calc=()=>{
     const G={};
-    all.filter(s=>s.type!=='N'&&(incl?s.status!=='rejected':s.status==='done')).forEach(s=>{
+    (useTay?all.concat(tayS):all).filter(s=>s.type!=='N'&&(incl?s.status!=='rejected':s.status==='done')).forEach(s=>{
       const dt=s.head.ngay_xuat||s.head.ngay||'';if((d1&&dt<d1)||(d2&&dt>d2))return;
       const g=who(s)||'Chưa rõ';const o=G[g]=G[g]||{name:g,x:0,t:0,d:0,items:{},slips:[]};o.slips.push(s);
       s.items.forEach(i=>{const sl=num(i.sl);if(!sl)return;const cc=CAT.find(x=>x[0]===i.ma),dv=cc?cc[2]:i.dvt;const k=(i.ma||'')+'|'+i.ten+'|'+dv;const it=o.items[k]=o.items[k]||{ma:i.ma||'',ten:i.ten,dvt:dv,x:0,t:0,d:0};
@@ -2704,16 +2815,16 @@ async function viewStats(){
     $('stsum').innerHTML=`<div><b>${gs.length}</b><span>Nhà thầu</span></div><div><b>${fmtN(tx)}</b><span>Tổng xuất</span></div><div><b>${fmtN(tt)}</b><span>Tổng trả</span></div><div><b>${fmtN(tx-tt)}</b><span>Còn tại đội</span></div><div><b>${fmtN(td)}</b><span>Dự trù</span></div>`;
     $('stlist').innerHTML=gs.map(g=>{const on=open===g.name;const ci=r=>{let k=CAT.findIndex(c=>c[0]===r.ma);if(k<0){const m=String(r.ten).match(/\(([A-Z0-9-]+)\)\s*$/);if(m)k=CAT.findIndex(c=>c[0]===m[1]);}return k<0?99:k;};const rows=Object.values(g.items).sort((a,b)=>ci(a)-ci(b)||a.ten.localeCompare(b.ten,'vi'));
       return `<div class="panel" style="padding:0"><button class="stbtn" data-g="${esc(g.name)}" aria-expanded="${on}" style="all:unset;box-sizing:border-box;display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between;width:100%;padding:14px 16px;cursor:pointer"><b style="font-size:17px;color:var(--navy)">${esc(g.name)}</b><span><span class="badge b-done">Xuất ${fmtN(g.x)}</span> <span class="badge b-pending">Trả ${fmtN(g.t)}</span> <span class="badge ${g.x-g.t>0?'b-rejected':'b-done'}">Còn ${fmtN(g.x-g.t)}</span>${g.d?` <span class="badge b-pending">Dự trù ${fmtN(g.d)}</span>`:''}</span></button>
-      ${on?`<div class="scroll" style="padding:0 16px 14px"><table class="t"><thead><tr><th>Mã</th><th>Thiết bị</th><th>ĐVT</th><th>Xuất</th><th>Trả</th><th>Còn tại đội</th><th>Dự trù</th></tr></thead><tbody>${rows.map(r=>`<tr><td>${esc(r.ma)}</td><td>${esc(r.ten)}</td><td>${esc(r.dvt)}</td><td>${fmtN(r.x)}</td><td>${fmtN(r.t)}</td><td><b>${fmtN(r.x-r.t)}</b></td><td>${r.d?fmtN(r.d):''}</td></tr>`).join('')}</tbody></table><p class="hint">${g.slips.length} phiếu: ${g.slips.map(s=>`<a href="#/phieu/${s.id}">${esc(s.code)}</a>`).join(', ')}</p></div>`:''}</div>`;}).join('')||'<p class="hint">Chưa có phiếu nào đã ký xong.</p>';
+      ${on?`<div class="scroll" style="padding:0 16px 14px"><table class="t"><thead><tr><th>Mã</th><th>Thiết bị</th><th>ĐVT</th><th>Xuất</th><th>Trả</th><th>Còn tại đội</th><th>Dự trù</th></tr></thead><tbody>${rows.map(r=>`<tr><td>${esc(r.ma)}</td><td>${esc(r.ten)}</td><td>${esc(r.dvt)}</td><td>${fmtN(r.x)}</td><td>${fmtN(r.t)}</td><td><b>${fmtN(r.x-r.t)}</b></td><td>${r.d?fmtN(r.d):''}</td></tr>`).join('')}</tbody></table><p class="hint">${g.slips.filter(s=>!s._tay).length} phiếu${g.slips.some(s=>s._tay)?' + '+g.slips.filter(s=>s._tay).length+' đợt nhập tay':''}: ${g.slips.map(s=>s._tay?`<span>${esc(s.code)}</span>`:`<a href="#/phieu/${s.id}">${esc(s.code)}</a>`).join(', ')}</p></div>`:''}</div>`;}).join('')||'<p class="hint">Chưa có phiếu nào đã ký xong.</p>';
     document.querySelectorAll('.stbtn').forEach(b=>b.onclick=()=>{open=open===b.dataset.g?null:b.dataset.g;draw();});
-    $('stx').onclick=()=>exportXlsx(all.filter(s=>(incl?s.status!=='rejected':s.status==='done')));
+    $('stx').onclick=()=>exportXlsx(all.filter(s=>(incl?s.status!=='rejected':s.status==='done')),{tay:useTay?'all':null});
   };
   app.innerHTML=`<div class="eyebrow">Theo dõi xuất / trả theo nhà thầu</div><h2 style="margin:4px 0 12px;font-size:26px;color:var(--navy)">Thống kê thiết bị</h2>
    <div class="row"><input id="stq" placeholder="Tìm nhà thầu" style="max-width:220px" aria-label="Tìm nhà thầu"><label class="hint">Từ <input type="date" id="std1" style="width:auto"></label><label class="hint">Đến <input type="date" id="std2" style="width:auto"></label>
-   <label class="row" style="gap:6px"><input type="checkbox" id="stin" style="width:18px;height:18px;min-height:0"> Gồm phiếu chưa ký xong</label><button class="btn blue sm" id="stx" style="margin-left:auto">Xuất Excel theo nhà thầu</button></div>
+   <label class="row" style="gap:6px"><input type="checkbox" id="stin" style="width:18px;height:18px;min-height:0"> Gồm phiếu chưa ký xong</label>${tayS.length?`<label class="row" style="gap:6px"><input type="checkbox" id="sttay" checked style="width:18px;height:18px;min-height:0"> Gồm vật tư nhập tay (${tayRows.filter(r=>r.tt==='giao').length} dòng)</label>`:''}<button class="btn blue sm" id="stx" style="margin-left:auto">Xuất Excel theo nhà thầu</button></div>
    <div class="stats" id="stsum" style="margin:12px 0"></div><div id="stlist" style="display:flex;flex-direction:column;gap:10px"></div>
-   <p class="hint">Xuất = phiếu xuất kho, Trả = phiếu trả kho, Dự trù = phiếu dự trù thiết bị (tính riêng, không trừ vào Còn tại đội). Không tính phiếu NCC. Còn tại đội = xuất trừ trả, cộng theo từng thiết bị. Bấm vào tên nhà thầu để xem chi tiết.</p>`;
-  $('stq').oninput=e=>{q=e.target.value;draw();};$('std1').onchange=e=>{d1=e.target.value;draw();};$('std2').onchange=e=>{d2=e.target.value;draw();};$('stin').onchange=e=>{incl=e.target.checked;draw();};
+   <p class="hint">Xuất = phiếu xuất kho, Trả = phiếu trả kho, Dự trù = phiếu dự trù thiết bị (tính riêng, không trừ vào Còn tại đội). ${tayS.length?`Vật tư nhập tay = số liệu từ file Excel tổng hợp cũ (${esc(tayD.file||'')}), mỗi đội + ngày giao là 1 đợt; ${tayRows.filter(r=>r.tt==='chua').length} dòng chưa giao không tính. `:''}Không tính phiếu NCC. Còn tại đội = xuất trừ trả, cộng theo từng thiết bị. Bấm vào tên nhà thầu để xem chi tiết.</p>`;
+  $('stq').oninput=e=>{q=e.target.value;draw();};$('std1').onchange=e=>{d1=e.target.value;draw();};$('std2').onchange=e=>{d2=e.target.value;draw();};$('stin').onchange=e=>{incl=e.target.checked;draw();};if($('sttay'))$('sttay').onchange=e=>{useTay=e.target.checked;draw();};
   draw();
 }
 
